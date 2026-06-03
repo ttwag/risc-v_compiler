@@ -1,0 +1,62 @@
+(* === GRAMMAR RULES OF A TOY LANGUAGE === *)
+
+(* === LEXER RULES === *)
+(* Punctuation & Operators *)
+LPAREN     = "(" ;
+RPAREN     = ")" ;
+LCURLY     = "{" ;
+RCURLY     = "}" ;
+COMMA      = "," ;
+SEMI       = ";" ;
+COLON      = ":" ;
+PLUS       = "+" ;
+MINUS      = "-" ;
+ASSIGNMENT = ":=" ;
+EQUALITY   = "==" ;
+GRT        = ">" ;
+ARROW      = "->" ;
+
+(* Keywords *)
+INT      = "int" ;
+FUNCTION = "fn" ;
+LET      = "let" ;
+WHILE    = "while" ;
+IF       = "if" ;
+ELSEIF   = "elif" ;
+ELSE     = "else" ;
+RETURN   = "return" ;
+
+(* Whitespace — ignored *)
+WS  = { " " | "\t" | "\n" | "\r" } ;
+
+(* Terminals *)
+NUM = [0] | [1-9][0-9]* ;
+ID  = [a-zA-Z_][a-zA-Z_0-9]* ;
+
+(* === PARSER RULES === *)
+program = func_def+ EOF;
+
+(* Function Definition*)
+func_def = 'fn' ID '(' (param (',' param)*)? ')' '->' type '{' stmt* '}' ;
+param = ID ':' type ;
+
+(* Statement *)
+stmt = ID ':=' expr ';'
+     | 'let' ID ':' type ':=' expr ';'
+     | 'if' '(' expr ')' '{' stmt* '}' ('elif' '{' stmt* '}')* ('else' '{' stmt* '}')?
+     | 'while' '(' expr ')' '{' stmt* '}'
+     | 'return' expr ';'
+     ;
+
+(* Expressions *)
+expr = comparison_expr
+comparison_expr = arithmetic_expr (('==' | '>') arithmetic_expr)? ;
+arithmetic_expr = atom_expr (('+' | '-') atom_expr)* ;
+atom_expr = ID
+          | NUM
+          | '(' expr ')'
+          | ID '(' expr (',' expr)* ')'; (*function call*)
+          ;
+
+(* type *)
+type = 'int' ;
