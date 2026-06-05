@@ -261,4 +261,34 @@ mod tests {
         s.peek();
         assert_eq!(s.index, 0);
     }
+
+    // ── advance ───────────────────────────────────────────────────────────────
+    #[test]
+    fn advance_empty_returns_none() {
+        let mut s = Scanner::new("");
+        assert_eq!(s.advance(), None);
+    }
+
+    #[test]
+    fn advance_ends() {
+        let mut s = Scanner::new("再見");
+        s.advance();
+        s.advance();
+        assert_eq!(s.peek(), None);
+    }
+
+    #[test]
+    fn advance_returns_current_char_and_move_index() {
+        let mut s = Scanner::new("abc");
+        assert_eq!(s.advance(), Some('a'));
+        assert_eq!(s.index, 1);
+    }
+
+    #[test]
+    fn advance_new_line_increase_line_and_resets_col() {
+        let mut s = Scanner::new("\n");
+        s.advance();
+        assert_eq!(s.line, 2);
+        assert_eq!(s.col, 1);
+    }
 }
