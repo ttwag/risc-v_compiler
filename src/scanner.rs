@@ -328,4 +328,12 @@ mod tests {
         let err = s.emit_number().unwrap_err();
         assert!(matches!(err, LexError::UnexpectedChar(Some('e'), ..)));
     }
+
+    #[test]
+    fn emit_number_emits_zero() -> Result<(), LexError> {
+        let mut s = Scanner::new("0");
+        let t = s.emit_number()?;
+        assert_eq!(t.value.unwrap(), "0");
+        Ok(())
+    }
 }
