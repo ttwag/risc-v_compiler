@@ -1,5 +1,7 @@
 use std::fs;
 use std::vec;
+
+#[derive(Debug)]
 pub enum TokenType {
     // Punctuation
     LParen,
@@ -32,12 +34,18 @@ pub enum TokenType {
     Eof,
 }
 
+#[derive(Debug)]
 pub struct Token<'a> {
     kind: TokenType,
     value: Option<&'a str>,
     length: usize,
     line: usize,
     col: usize,
+}
+
+#[derive(Debug)]
+pub enum LexError {
+    UnexpectedChar(Option<char>, usize, usize), //character, line, col
 }
 
 pub struct Scanner<'a> {
@@ -111,7 +119,12 @@ impl<'a> Scanner<'a> {
         token
     }
 
-    fn emit_number(&mut self) -> Token<'a> {
+    ///
+    /// From current input index, scans for a number matching the pattern 0 | [1-9][0-9]*
+    /// and return the tokenized result. Advanced past all consumed digits.
+    /// Returns an error when no digit or zero leading other digits
+    ///
+    fn emit_number(&mut self) -> Result<Token<'a>, LexError> {
         let start = self.index;
         let line = self.line;
         let col = self.col;
@@ -120,22 +133,23 @@ impl<'a> Scanner<'a> {
         match self.peek() {
             Some('0') => {
                 self.advance();
+                if matches!(self.peek(), Some('0'..='9')) {
+                    return Err(LexError::UnexpectedChar(self.peek(), self.line, self.col));
+                }
+                Ok(self.make_token_from(TokenType::Num, start, line, col))
             }
             Some('1'..='9') => {
                 self.advance();
-                while let Some(num) = self.peek() {
-                    if num.is_numeric() {
-                        self.advance();
-                    } else {
+                while let Some(next) = self.peek() {
+                    if !matches!(next, '0'..='9') {
                         break;
                     }
+                    self.advance();
                 }
+                Ok(self.make_token_from(TokenType::Num, start, line, col))
             }
-            _ => {}
+            _ => Err(LexError::UnexpectedChar(self.peek(), self.line, self.col)),
         }
-
-        // make token from the current index
-        self.make_token_from(TokenType::Num, start, line, col)
     }
 
     fn match_keyword(&self, s: Option<&str>) -> Option<TokenType> {
@@ -189,7 +203,7 @@ impl<'a> Scanner<'a> {
     /// let mut scanner = Scanner::new("let x := 42;");
     /// let tokens = scanner.scan();
     /// ```
-    pub fn scan(&mut self) -> Vec<Token<'a>> {
+    pub fn scan(&mut self) -> Result<Vec<Token<'a>>, LexError> {
         let mut tokens = Vec::new();
         while let Some(curr) = self.peek() {
             let next = self.peek_next();
@@ -210,7 +224,7 @@ impl<'a> Scanner<'a> {
                 ('+', _) => tokens.push(self.emit(TokenType::Plus, 1)),
                 ('-', _) => tokens.push(self.emit(TokenType::Minus, 1)),
                 ('>', _) => tokens.push(self.emit(TokenType::Grt, 1)),
-                ('0' | '1'..='9', _) => tokens.push(self.emit_number()),
+                ('0'..='9', _) => tokens.push(self.emit_number()?),
                 ('a'..='z' | 'A'..='Z' | '_', _) => tokens.push(self.emit_id()),
                 (c, _) => panic!(
                     "unexpected character '{}' at line {} col {}",
@@ -225,7 +239,7 @@ impl<'a> Scanner<'a> {
             line: self.line,
             col: self.col,
         });
-        tokens
+        Ok(tokens)
     }
 }
 
@@ -290,5 +304,28 @@ mod tests {
         s.advance();
         assert_eq!(s.line, 2);
         assert_eq!(s.col, 1);
+    }
+
+    // ── emit_number ───────────────────────────────────────────────────────────────
+    #[test]
+    fn emit_number_matches_number() -> Result<(), LexError> {
+        let mut s = Scanner::new("12345");
+        let t = s.emit_number()?;
+        assert_eq!(t.value.unwrap(), "12345");
+        Ok(())
+    }
+
+    #[test]
+    fn emit_number_ignores_zero_as_head() {
+        let mut s = Scanner::new("09");
+        let err = s.emit_number().unwrap_err();
+        assert!(matches!(err, LexError::UnexpectedChar(Some('9'), ..)));
+    }
+
+    #[test]
+    fn emit_number_no_digit() {
+        let mut s = Scanner::new("e");
+        let err = s.emit_number().unwrap_err();
+        assert!(matches!(err, LexError::UnexpectedChar(Some('e'), ..)));
     }
 }
