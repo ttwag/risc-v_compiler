@@ -228,3 +228,37 @@ impl<'a> Scanner<'a> {
         tokens
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── peek ──────────────────────────────────────────────────────────────────
+    #[test]
+    fn peek_on_empty_input_returns_none() {
+        let s = Scanner::new("");
+        assert_eq!(s.peek(), None);
+    }
+
+    #[test]
+    fn peek_returns_ch() {
+        let s = Scanner::new("aint");
+        assert_eq!(s.peek(), Some('a'));
+    }
+
+    #[test]
+    fn peek_same_index_after_two_calls() {
+        let s = Scanner::new("t");
+        s.peek();
+        s.peek();
+        assert_eq!(s.index, 0);
+    }
+
+    #[test]
+    fn peek_handles_unicode() {
+        let s = Scanner::new("£");
+        s.peek();
+        s.peek();
+        assert_eq!(s.index, 0);
+    }
+}

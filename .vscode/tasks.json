@@ -31,6 +31,17 @@
                 "reveal": "always",
                 "panel": "shared"
             }
+        },
+        {
+            "label": "Cargo Test",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["test"],
+            "problemMatcher": ["$rustc"],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
         }
     ]
 }
