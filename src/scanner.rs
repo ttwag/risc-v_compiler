@@ -248,6 +248,7 @@ impl<'a> Scanner<'a> {
     ///
     /// # Examples
     /// ```
+    /// use risc_v_compiler::Scanner;
     /// let mut scanner = Scanner::new("let x := 42;");
     /// let tokens = scanner.scan();
     /// ```
