@@ -111,7 +111,20 @@ impl<'a> Scanner<'a> {
         }
     }
 
+    ///
+    /// emit is used when the kind and length of the token is known.
+    /// From current input index, emit scans for a number matching the pattern .{len}
+    /// and return the tokenized result with the input kind (it doesn't type-check kind and value).
+    /// Advances past all consumed characters.
+    /// 
+    /// Panics when len + self.index is greater than the length of self.input.
+    ///
     fn emit(&mut self, kind: TokenType, len: usize) -> Token<'a> {
+        assert!(
+            self.index + len <= self.input.len(),
+            "emit: len({len}) exceeds remaining input ({} remaining)",
+            self.input.len() - self.index
+        );
         let token = self.make_token(kind, len);
         for _ in 0..len {
             self.advance();
@@ -311,6 +324,35 @@ mod tests {
         s.advance();
         assert_eq!(s.line, 2);
         assert_eq!(s.col, 1);
+    }
+
+    // ── emit ───────────────────────────────────────────────────────────────
+    #[test]
+    #[should_panic(expected = "emit: len")]
+    fn emit_incorrect_length() {
+        let mut s = Scanner::new("");
+        let token = s.emit(TokenType::Arrow, 10);
+    }
+
+    #[test]
+    fn emit_single_char() {
+        let mut s = Scanner::new("(");
+        let token = s.emit(TokenType::LParen, 1);
+        assert_eq!(token.value, Some("("));
+    }
+
+    #[test]
+    fn emit_multi_char() {
+        let mut s = Scanner::new(":=");
+        let token = s.emit(TokenType::Assignment, 2);
+        assert_eq!(token.value, Some(":="));
+    }
+
+    #[test]
+    fn emit_incorrect_type() {
+        let mut s = Scanner::new(":=");
+        let token = s.emit(TokenType::Equality, 2);
+        assert_eq!(token.value, Some(":="));
     }
 
     // ── emit_number ───────────────────────────────────────────────────────────────
