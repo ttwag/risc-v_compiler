@@ -129,6 +129,7 @@ impl<'a> Scanner<'a> {
     /// Panics when len + self.index is greater than the length of self.input.
     ///
     fn emit(&mut self, kind: TokenType, len: usize) -> Token<'a> {
+        assert!(len >= 1, "emit: len must be >= 1, got {len}");
         assert!(
             self.index + len <= self.input.len(),
             "emit: len({len}) exceeds remaining input ({} remaining)",
@@ -337,6 +338,13 @@ mod tests {
     }
 
     // ── emit ───────────────────────────────────────────────────────────────
+    #[test]
+    #[should_panic(expected = "emit: len")]
+    fn emit_zero_length() {
+        let mut s = Scanner::new("1");
+        let token = s.emit(TokenType::Arrow, 0);
+    }
+
     #[test]
     #[should_panic(expected = "emit: len")]
     fn emit_incorrect_length() {
