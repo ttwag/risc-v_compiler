@@ -150,8 +150,15 @@ impl<'a> Scanner<'a> {
     /// From current input index, scans for a number matching the pattern 0 | [1-9][0-9]*
     /// and return the tokenized result. Advanced past all consumed digits.
     /// Returns an error when no digit or zero leading other digits
+    /// # Panics (debug)
+    /// Panics in debug builds if `self.index` is out of bounds.
     ///
     fn emit_number(&mut self) -> Result<Token<'a>, LexError> {
+        debug_assert!(
+            self.index < self.input.len(),
+            "emit_number: index out of bounds"
+        );
+
         let start = self.index;
         let line = self.line;
         let col = self.col;
@@ -198,8 +205,15 @@ impl<'a> Scanner<'a> {
     /// and return the tokenized result (will replace with keyword if needed).
     /// Advanced past all consumed characters.
     /// Returns an error when seeing an invalid character
+    /// # Panics (debug)
+    /// Panics in debug builds if `self.index` is out of bounds.
     ///
     fn emit_id(&mut self) -> Result<Token<'a>, LexError> {
+        debug_assert!(
+            self.index < self.input.len(),
+            "emit_number: index out of bounds"
+        );
+
         let start = self.index;
         let line = self.line;
         let col = self.col;
