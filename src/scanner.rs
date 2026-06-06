@@ -152,7 +152,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn match_keyword(&self, s: Option<&str>) -> Option<TokenType> {
+    fn match_keyword(s: Option<&str>) -> Option<TokenType> {
         match s {
             Some("int") => Some(TokenType::Int),
             Some("let") => Some(TokenType::Let),
@@ -166,7 +166,13 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn emit_id(&mut self) -> Token<'a> {
+    ///
+    /// From current input index, scans for a number matching the pattern [a-zA-Z_][a-zA-Z_0-9]*
+    /// and return the tokenized result (will replace with keyword if needed).
+    /// Advanced past all consumed characters.
+    /// Returns an error when seeing an invalid character
+    ///
+    fn emit_id(&mut self) -> Result<Token<'a>, LexError> {
         let start = self.index;
         let line = self.line;
         let col = self.col;
@@ -175,22 +181,23 @@ impl<'a> Scanner<'a> {
         match self.peek() {
             Some('a'..='z' | 'A'..='Z' | '_') => {
                 while let Some(ch) = self.peek() {
-                    if ch.is_ascii_alphanumeric() || ch == '_' {
-                        self.advance();
-                    } else {
+                    if !(ch.is_ascii_alphanumeric() || ch == '_') {
                         break;
                     }
+                    self.advance();
                 }
             }
-            _ => {}
+            _ => {
+                return Err(LexError::UnexpectedChar(self.peek(), self.line, self.col));
+            }
         }
 
         // make token from the current index
         let mut token = self.make_token_from(TokenType::Id, start, line, col);
-        if let Some(kind) = self.match_keyword(token.value) {
+        if let Some(kind) = Scanner::match_keyword(token.value) {
             token.kind = kind;
         }
-        token
+        Ok(token)
     }
 
     /// Scans the input and returns a list of tokens as defined in grammar.ebnf.
@@ -225,7 +232,7 @@ impl<'a> Scanner<'a> {
                 ('-', _) => tokens.push(self.emit(TokenType::Minus, 1)),
                 ('>', _) => tokens.push(self.emit(TokenType::Grt, 1)),
                 ('0'..='9', _) => tokens.push(self.emit_number()?),
-                ('a'..='z' | 'A'..='Z' | '_', _) => tokens.push(self.emit_id()),
+                ('a'..='z' | 'A'..='Z' | '_', _) => tokens.push(self.emit_id()?),
                 (c, _) => panic!(
                     "unexpected character '{}' at line {} col {}",
                     c, self.line, self.col
@@ -335,5 +342,46 @@ mod tests {
         let t = s.emit_number()?;
         assert_eq!(t.value.unwrap(), "0");
         Ok(())
+    }
+
+    // ── emit_id ───────────────────────────────────────────────────────────────
+    #[test]
+    fn emit_id_no_invalid_char() {
+        let mut s = Scanner::new("!");
+        let err = s.emit_id().unwrap_err();
+        assert!(matches!(err, LexError::UnexpectedChar(Some('!'), ..)));
+    }
+
+    #[test]
+    fn emit_id_take_id() -> Result<(), LexError> {
+        let mut s = Scanner::new("this_is_an_id");
+        let id = s.emit_id()?;
+        assert!(matches!(id.value.unwrap(), "this_is_an_id"));
+        Ok(())
+    }
+
+    #[test]
+    fn emit_id_take_id_containing_keyword() -> Result<(), LexError> {
+        let mut s = Scanner::new("this_is_an_int_id");
+        let id = s.emit_id()?;
+        assert!(matches!(id.value.unwrap(), "this_is_an_int_id"));
+        assert!(matches!(id.kind, TokenType::Id));
+        Ok(())
+    }
+
+    #[test]
+    fn emit_id_match_keyword() -> Result<(), LexError> {
+        let mut s = Scanner::new("return");
+        let id = s.emit_id()?;
+        assert!(matches!(id.value.unwrap(), "return"));
+        assert!(matches!(id.kind, TokenType::Return));
+        Ok(())
+    }
+
+    #[test]
+    fn emit_id_reject_leading_digit() {
+        let mut s = Scanner::new("0_hi");
+        let err = s.emit_id().unwrap_err();
+        assert!(matches!(err, LexError::UnexpectedChar(Some('0'), ..)));
     }
 }
