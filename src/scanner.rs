@@ -1,3 +1,5 @@
+use std::error::Error;
+use std::fmt;
 use std::fs;
 use std::vec;
 
@@ -47,6 +49,23 @@ pub struct Token<'a> {
 pub enum LexError {
     UnexpectedChar(Option<char>, usize, usize), //character, line, col
 }
+impl fmt::Display for LexError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            LexError::UnexpectedChar(Some(c), line, col) => {
+                write!(
+                    f,
+                    "Unexpected character: {} at line {} col {}",
+                    c, line, col
+                )
+            }
+            LexError::UnexpectedChar(None, line, col) => {
+                write!(f, "Unexpected end of input at line {} col {}", line, col)
+            }
+        }
+    }
+}
+impl Error for LexError {}
 
 pub struct Scanner<'a> {
     input: &'a str,
@@ -240,10 +259,7 @@ impl<'a> Scanner<'a> {
                 ('>', _) => tokens.push(self.emit(TokenType::Grt, 1)),
                 ('0'..='9', _) => tokens.push(self.emit_number()?),
                 ('a'..='z' | 'A'..='Z' | '_', _) => tokens.push(self.emit_id()?),
-                (c, _) => panic!(
-                    "unexpected character '{}' at line {} col {}",
-                    c, self.line, self.col
-                ),
+                (_, _) => return Err(LexError::UnexpectedChar(self.peek(), self.line, self.col)),
             }
         }
         tokens.push(Token {
