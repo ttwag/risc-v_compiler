@@ -90,16 +90,6 @@ impl<'a> Scanner<'a> {
         c
     }
 
-    fn make_token(&self, kind: TokenType, len: usize) -> Token<'a> {
-        Token {
-            kind,
-            value: self.input.get(self.index..self.index + len),
-            length: len,
-            line: self.line,
-            col: self.col,
-        }
-    }
-
     fn make_token_from(&self, kind: TokenType, start: usize, line: usize, col: usize) -> Token<'a> {
         let len = self.index - start;
         Token {
@@ -116,7 +106,7 @@ impl<'a> Scanner<'a> {
     /// From current input index, emit scans for a number matching the pattern .{len}
     /// and return the tokenized result with the input kind (it doesn't type-check kind and value).
     /// Advances past all consumed characters.
-    /// 
+    ///
     /// Panics when len + self.index is greater than the length of self.input.
     ///
     fn emit(&mut self, kind: TokenType, len: usize) -> Token<'a> {
@@ -125,11 +115,15 @@ impl<'a> Scanner<'a> {
             "emit: len({len}) exceeds remaining input ({} remaining)",
             self.input.len() - self.index
         );
-        let token = self.make_token(kind, len);
+
+        let start = self.index;
+        let line = self.line;
+        let col = self.col;
+
         for _ in 0..len {
             self.advance();
         }
-        token
+        self.make_token_from(kind, start, line, col)
     }
 
     ///
