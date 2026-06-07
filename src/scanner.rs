@@ -1,7 +1,5 @@
 use std::error::Error;
 use std::fmt;
-use std::fs;
-use std::vec;
 
 #[derive(Debug, PartialEq)]
 pub enum TokenType {
@@ -357,14 +355,14 @@ mod tests {
     #[should_panic(expected = "emit: len")]
     fn emit_zero_length() {
         let mut s = Scanner::new("1");
-        let token = s.emit(TokenType::Arrow, 0);
+        let _ = s.emit(TokenType::Arrow, 0);
     }
 
     #[test]
     #[should_panic(expected = "emit: len")]
     fn emit_incorrect_length() {
         let mut s = Scanner::new("");
-        let token = s.emit(TokenType::Arrow, 10);
+        let _ = s.emit(TokenType::Arrow, 10);
     }
 
     #[test]
