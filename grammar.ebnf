@@ -43,7 +43,7 @@ param = ID ':' type ;
 (* Statement *)
 stmt = ID ':=' expr ';'
      | 'let' ID ':' type ':=' expr ';'
-     | 'if' '(' expr ')' '{' stmt* '}' ('elif' '{' stmt* '}')* ('else' '{' stmt* '}')?
+     | 'if' '(' expr ')' '{' stmt* '}' ('elif' '(' expr ')' '{' stmt* '}')* ('else' '{' stmt* '}')?
      | 'while' '(' expr ')' '{' stmt* '}'
      | 'return' expr ';'
      ;
