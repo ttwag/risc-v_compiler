@@ -33,7 +33,29 @@
             }
         },
         {
-            "label": "Cargo Test",
+            "label": "Rust Unit Test",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["test", "--lib"],
+            "problemMatcher": ["$rustc"],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Rust Integration Test",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["test", "--test", "${fileBasenameNoExtension}"],
+            "problemMatcher": ["$rustc"],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Rust All Test",
             "type": "shell",
             "command": "cargo",
             "args": ["test"],
