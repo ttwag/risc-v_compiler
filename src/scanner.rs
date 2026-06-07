@@ -3,7 +3,7 @@ use std::fmt;
 use std::fs;
 use std::vec;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TokenType {
     // Punctuation
     LParen,
@@ -38,11 +38,11 @@ pub enum TokenType {
 
 #[derive(Debug)]
 pub struct Token<'a> {
-    kind: TokenType,
-    value: Option<&'a str>,
-    length: usize,
-    line: usize,
-    col: usize,
+    pub kind: TokenType,
+    pub value: Option<&'a str>,
+    pub length: usize,
+    pub line: usize,
+    pub col: usize,
 }
 
 #[derive(Debug)]
