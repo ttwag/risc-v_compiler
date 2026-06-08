@@ -35,7 +35,25 @@ pub enum TokenType {
 pub struct Token<'a> {
     pub kind: TokenType,
     pub value: Option<&'a str>,
-    pub length: usize,
+    pub start: Location,
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct Location {
     pub line: usize,
     pub col: usize,
+}
+
+impl Location {
+    pub fn advance(&mut self, ch: char) {
+        match ch {
+            '\n' => {
+                self.line += 1;
+                self.col = 1;
+            }
+            _ => {
+                self.col += 1;
+            }
+        }
+    }
 }

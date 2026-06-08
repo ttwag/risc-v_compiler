@@ -1,23 +1,27 @@
-use crate::token::{Token, TokenType};
+use crate::token::{Location, Token, TokenType};
 use std::error::Error;
 use std::fmt;
 
 #[derive(Debug)]
 pub enum LexError {
-    UnexpectedChar(Option<char>, usize, usize), //character, line, col
+    UnexpectedChar(Option<char>, Location), //character, line, col
 }
 impl fmt::Display for LexError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            LexError::UnexpectedChar(Some(c), line, col) => {
+            LexError::UnexpectedChar(Some(c), loc) => {
                 write!(
                     f,
                     "Unexpected character: {} at line {} col {}",
-                    c, line, col
+                    c, loc.line, loc.col
                 )
             }
-            LexError::UnexpectedChar(None, line, col) => {
-                write!(f, "Unexpected end of input at line {} col {}", line, col)
+            LexError::UnexpectedChar(None, loc) => {
+                write!(
+                    f,
+                    "Unexpected end of input at line {} col {}",
+                    loc.line, loc.col
+                )
             }
         }
     }
@@ -27,8 +31,7 @@ impl Error for LexError {}
 pub struct Scanner<'a> {
     input: &'a str,
     index: usize,
-    line: usize,
-    col: usize,
+    loc: Location,
 }
 
 impl<'a> Scanner<'a> {
@@ -36,8 +39,7 @@ impl<'a> Scanner<'a> {
         Self {
             input,
             index: 0,
-            line: 1,
-            col: 1,
+            loc: Location { line: 1, col: 1 },
         }
     }
 
@@ -53,27 +55,16 @@ impl<'a> Scanner<'a> {
         let c = self.peek();
         if let Some(ch) = c {
             self.index += ch.len_utf8();
-            match ch {
-                '\n' => {
-                    self.line += 1;
-                    self.col = 1;
-                }
-                _ => {
-                    self.col += 1;
-                }
-            }
+            self.loc.advance(ch);
         };
         c
     }
 
-    fn make_token_from(&self, kind: TokenType, start: usize, line: usize, col: usize) -> Token<'a> {
-        let len = self.index - start;
+    fn make_token_from(&self, kind: TokenType, start: usize, loc: Location) -> Token<'a> {
         Token {
             kind,
             value: self.input.get(start..self.index),
-            length: len,
-            line: line,
-            col: col,
+            start: loc,
         }
     }
 
@@ -94,13 +85,12 @@ impl<'a> Scanner<'a> {
         );
 
         let start = self.index;
-        let line = self.line;
-        let col = self.col;
+        let loc = self.loc;
 
         for _ in 0..len {
             self.advance();
         }
-        self.make_token_from(kind, start, line, col)
+        self.make_token_from(kind, start, loc)
     }
 
     ///
@@ -117,17 +107,16 @@ impl<'a> Scanner<'a> {
         );
 
         let start = self.index;
-        let line = self.line;
-        let col = self.col;
+        let loc = self.loc;
 
         // advance
         match self.peek() {
             Some('0') => {
                 self.advance();
                 if matches!(self.peek(), Some('0'..='9')) {
-                    return Err(LexError::UnexpectedChar(self.peek(), self.line, self.col));
+                    return Err(LexError::UnexpectedChar(self.peek(), self.loc));
                 }
-                Ok(self.make_token_from(TokenType::Num, start, line, col))
+                Ok(self.make_token_from(TokenType::Num, start, loc))
             }
             Some('1'..='9') => {
                 self.advance();
@@ -137,9 +126,9 @@ impl<'a> Scanner<'a> {
                     }
                     self.advance();
                 }
-                Ok(self.make_token_from(TokenType::Num, start, line, col))
+                Ok(self.make_token_from(TokenType::Num, start, loc))
             }
-            _ => Err(LexError::UnexpectedChar(self.peek(), self.line, self.col)),
+            _ => Err(LexError::UnexpectedChar(self.peek(), self.loc)),
         }
     }
 
@@ -172,8 +161,7 @@ impl<'a> Scanner<'a> {
         );
 
         let start = self.index;
-        let line = self.line;
-        let col = self.col;
+        let loc = self.loc;
 
         //advance
         match self.peek() {
@@ -186,12 +174,12 @@ impl<'a> Scanner<'a> {
                 }
             }
             _ => {
-                return Err(LexError::UnexpectedChar(self.peek(), self.line, self.col));
+                return Err(LexError::UnexpectedChar(self.peek(), self.loc));
             }
         }
 
         // make token from the current index
-        let mut token = self.make_token_from(TokenType::Id, start, line, col);
+        let mut token = self.make_token_from(TokenType::Id, start, loc);
         if let Some(kind) = Scanner::match_keyword(token.value) {
             token.kind = kind;
         }
@@ -232,15 +220,13 @@ impl<'a> Scanner<'a> {
                 ('>', _) => tokens.push(self.emit(TokenType::Grt, 1)),
                 ('0'..='9', _) => tokens.push(self.emit_number()?),
                 ('a'..='z' | 'A'..='Z' | '_', _) => tokens.push(self.emit_id()?),
-                (_, _) => return Err(LexError::UnexpectedChar(self.peek(), self.line, self.col)),
+                (_, _) => return Err(LexError::UnexpectedChar(self.peek(), self.loc)),
             }
         }
         tokens.push(Token {
             kind: TokenType::Eof,
             value: None,
-            length: 0,
-            line: self.line,
-            col: self.col,
+            start: self.loc,
         });
         Ok(tokens)
     }
@@ -305,8 +291,7 @@ mod tests {
     fn advance_new_line_increase_line_and_resets_col() {
         let mut s = Scanner::new("\n");
         s.advance();
-        assert_eq!(s.line, 2);
-        assert_eq!(s.col, 1);
+        assert_eq!(s.loc, Location { line: 2, col: 1 });
     }
 
     // ── emit ───────────────────────────────────────────────────────────────
