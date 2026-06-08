@@ -1,4 +1,4 @@
-use crate::token::{Location, SyntaxToken, TokenType};
+use crate::token::{Location, Span, SyntaxToken, TokenType};
 use std::error::Error;
 use std::fmt;
 
@@ -70,7 +70,10 @@ impl<'a> Scanner<'a> {
         SyntaxToken {
             kind,
             value: self.input.get(start..self.loc.index),
-            start: loc,
+            span: Span {
+                start: loc,
+                end: loc,
+            },
         }
     }
 
@@ -232,7 +235,10 @@ impl<'a> Scanner<'a> {
         tokens.push(SyntaxToken {
             kind: TokenType::Eof,
             value: None,
-            start: self.loc,
+            span: Span {
+                start: self.loc,
+                end: self.loc,
+            },
         });
         Ok(tokens)
     }

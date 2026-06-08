@@ -35,7 +35,13 @@ pub enum TokenType {
 pub struct SyntaxToken<'a> {
     pub kind: TokenType,
     pub value: Option<&'a str>,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct Span {
     pub start: Location,
+    pub end: Location,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]

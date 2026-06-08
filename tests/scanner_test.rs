@@ -13,8 +13,8 @@ fn assert_token(
 ) {
     assert_eq!(token.kind, kind);
     assert_eq!(token.value, value);
-    assert_eq!(token.start.line, line);
-    assert_eq!(token.start.col, col);
+    assert_eq!(token.span.start.line, line);
+    assert_eq!(token.span.start.col, col);
 }
 
 //
