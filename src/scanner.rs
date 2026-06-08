@@ -1,4 +1,4 @@
-use crate::token::{Location, Token, TokenType};
+use crate::token::{Location, SyntaxToken, TokenType};
 use std::error::Error;
 use std::fmt;
 
@@ -60,8 +60,8 @@ impl<'a> Scanner<'a> {
         c
     }
 
-    fn make_token_from(&self, kind: TokenType, start: usize, loc: Location) -> Token<'a> {
-        Token {
+    fn make_token_from(&self, kind: TokenType, start: usize, loc: Location) -> SyntaxToken<'a> {
+        SyntaxToken {
             kind,
             value: self.input.get(start..self.index),
             start: loc,
@@ -76,7 +76,7 @@ impl<'a> Scanner<'a> {
     ///
     /// Panics when len + self.index is greater than the length of self.input.
     ///
-    fn emit(&mut self, kind: TokenType, len: usize) -> Token<'a> {
+    fn emit(&mut self, kind: TokenType, len: usize) -> SyntaxToken<'a> {
         assert!(len >= 1, "emit: len must be >= 1, got {len}");
         assert!(
             self.index + len <= self.input.len(),
@@ -100,7 +100,7 @@ impl<'a> Scanner<'a> {
     /// # Panics (debug)
     /// Panics in debug builds if `self.index` is out of bounds.
     ///
-    fn emit_number(&mut self) -> Result<Token<'a>, LexError> {
+    fn emit_number(&mut self) -> Result<SyntaxToken<'a>, LexError> {
         debug_assert!(
             self.index < self.input.len(),
             "emit_number: index out of bounds"
@@ -154,7 +154,7 @@ impl<'a> Scanner<'a> {
     /// # Panics (debug)
     /// Panics in debug builds if `self.index` is out of bounds.
     ///
-    fn emit_id(&mut self) -> Result<Token<'a>, LexError> {
+    fn emit_id(&mut self) -> Result<SyntaxToken<'a>, LexError> {
         debug_assert!(
             self.index < self.input.len(),
             "emit_number: index out of bounds"
@@ -197,7 +197,7 @@ impl<'a> Scanner<'a> {
     /// let mut scanner = scanner::Scanner::new("let x := 42;");
     /// let tokens = scanner.scan();
     /// ```
-    pub fn scan(&mut self) -> Result<Vec<Token<'a>>, LexError> {
+    pub fn scan(&mut self) -> Result<Vec<SyntaxToken<'a>>, LexError> {
         let mut tokens = Vec::new();
         while let Some(curr) = self.peek() {
             let next = self.peek_next();
@@ -223,7 +223,7 @@ impl<'a> Scanner<'a> {
                 (_, _) => return Err(LexError::UnexpectedChar(self.peek(), self.loc)),
             }
         }
-        tokens.push(Token {
+        tokens.push(SyntaxToken {
             kind: TokenType::Eof,
             value: None,
             start: self.loc,

@@ -1,10 +1,10 @@
 use risc_v_compiler::{
     scanner::{LexError, Scanner},
-    token::{Location, Token, TokenType},
+    token::{Location, SyntaxToken, TokenType},
 };
 
 #[track_caller]
-fn assert_token(token: &Token, kind: TokenType, value: Option<&str>, loc: Location) {
+fn assert_token(token: &SyntaxToken, kind: TokenType, value: Option<&str>, loc: Location) {
     assert_eq!(token.kind, kind);
     assert_eq!(token.value, value);
     assert_eq!(token.start, loc);

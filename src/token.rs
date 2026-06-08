@@ -32,7 +32,7 @@ pub enum TokenType {
 }
 
 #[derive(Debug)]
-pub struct Token<'a> {
+pub struct SyntaxToken<'a> {
     pub kind: TokenType,
     pub value: Option<&'a str>,
     pub start: Location,
