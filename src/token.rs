@@ -40,20 +40,17 @@ pub struct SyntaxToken<'a> {
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Location {
-    pub line: usize,
-    pub col: usize,
+    pub index: usize, // byte offset into source file
+    pub line: usize,  // current line in the file; \n increments line
+    pub col: usize,   // current position in the line
 }
 
 impl Location {
-    pub fn advance(&mut self, ch: char) {
-        match ch {
-            '\n' => {
-                self.line += 1;
-                self.col = 1;
-            }
-            _ => {
-                self.col += 1;
-            }
+    pub fn new() -> Self {
+        Self {
+            index: 0,
+            line: 1,
+            col: 1,
         }
     }
 }

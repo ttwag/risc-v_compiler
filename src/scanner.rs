@@ -30,7 +30,6 @@ impl Error for LexError {}
 
 pub struct Scanner<'a> {
     input: &'a str,
-    index: usize,
     loc: Location,
 }
 
@@ -38,24 +37,31 @@ impl<'a> Scanner<'a> {
     pub fn new(input: &'a str) -> Self {
         Self {
             input,
-            index: 0,
-            loc: Location { line: 1, col: 1 },
+            loc: Location::new(),
         }
     }
 
-    fn peek(&self) -> Option<char> {
-        self.input[self.index..].chars().nth(0)
+    pub fn peek(&self) -> Option<char> {
+        self.input[self.loc.index..].chars().nth(0)
     }
 
-    fn peek_next(&self) -> Option<char> {
-        self.input[self.index..].chars().nth(1)
+    pub fn peek_next(&self) -> Option<char> {
+        self.input[self.loc.index..].chars().nth(1)
     }
 
     fn advance(&mut self) -> Option<char> {
         let c = self.peek();
         if let Some(ch) = c {
-            self.index += ch.len_utf8();
-            self.loc.advance(ch);
+            self.loc.index += ch.len_utf8();
+            match ch {
+                '\n' => {
+                    self.loc.line += 1;
+                    self.loc.col = 1;
+                }
+                _ => {
+                    self.loc.col += 1;
+                }
+            }
         };
         c
     }
@@ -63,7 +69,7 @@ impl<'a> Scanner<'a> {
     fn make_token_from(&self, kind: TokenType, start: usize, loc: Location) -> SyntaxToken<'a> {
         SyntaxToken {
             kind,
-            value: self.input.get(start..self.index),
+            value: self.input.get(start..self.loc.index),
             start: loc,
         }
     }
@@ -79,12 +85,12 @@ impl<'a> Scanner<'a> {
     fn emit(&mut self, kind: TokenType, len: usize) -> SyntaxToken<'a> {
         assert!(len >= 1, "emit: len must be >= 1, got {len}");
         assert!(
-            self.index + len <= self.input.len(),
+            self.loc.index + len <= self.input.len(),
             "emit: len({len}) exceeds remaining input ({} remaining)",
-            self.input.len() - self.index
+            self.input.len() - self.loc.index
         );
 
-        let start = self.index;
+        let start = self.loc.index;
         let loc = self.loc;
 
         for _ in 0..len {
@@ -102,11 +108,11 @@ impl<'a> Scanner<'a> {
     ///
     fn emit_number(&mut self) -> Result<SyntaxToken<'a>, LexError> {
         debug_assert!(
-            self.index < self.input.len(),
+            self.loc.index < self.input.len(),
             "emit_number: index out of bounds"
         );
 
-        let start = self.index;
+        let start = self.loc.index;
         let loc = self.loc;
 
         // advance
@@ -156,11 +162,11 @@ impl<'a> Scanner<'a> {
     ///
     fn emit_id(&mut self) -> Result<SyntaxToken<'a>, LexError> {
         debug_assert!(
-            self.index < self.input.len(),
+            self.loc.index < self.input.len(),
             "emit_number: index out of bounds"
         );
 
-        let start = self.index;
+        let start = self.loc.index;
         let loc = self.loc;
 
         //advance
@@ -254,7 +260,7 @@ mod tests {
         let s = Scanner::new("t");
         s.peek();
         s.peek();
-        assert_eq!(s.index, 0);
+        assert_eq!(s.loc.index, 0);
     }
 
     #[test]
@@ -262,7 +268,7 @@ mod tests {
         let s = Scanner::new("£");
         s.peek();
         s.peek();
-        assert_eq!(s.index, 0);
+        assert_eq!(s.loc.index, 0);
     }
 
     // ── advance ───────────────────────────────────────────────────────────────
@@ -284,14 +290,21 @@ mod tests {
     fn advance_returns_current_char_and_move_index() {
         let mut s = Scanner::new("abc");
         assert_eq!(s.advance(), Some('a'));
-        assert_eq!(s.index, 1);
+        assert_eq!(s.loc.index, 1);
     }
 
     #[test]
     fn advance_new_line_increase_line_and_resets_col() {
         let mut s = Scanner::new("\n");
         s.advance();
-        assert_eq!(s.loc, Location { line: 2, col: 1 });
+        assert_eq!(
+            s.loc,
+            Location {
+                index: 1,
+                line: 2,
+                col: 1
+            }
+        );
     }
 
     // ── emit ───────────────────────────────────────────────────────────────
