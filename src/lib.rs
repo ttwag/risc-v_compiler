@@ -1,2 +1,2 @@
 pub mod scanner;
-pub use scanner::Scanner;
+pub mod token;

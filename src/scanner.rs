@@ -1,47 +1,6 @@
+use crate::token::{Token, TokenType};
 use std::error::Error;
 use std::fmt;
-
-#[derive(Debug, PartialEq)]
-pub enum TokenType {
-    // Punctuation
-    LParen,
-    RParen,
-    LCurly,
-    RCurly,
-    Semi,
-    Comma,
-    Colon,
-    // Operators
-    Plus,
-    Minus,
-    Assignment,
-    Equality,
-    Grt,
-    Arrow,
-    // Keywords
-    Int,
-    Let,
-    Function,
-    While,
-    If,
-    ElseIf,
-    Else,
-    Return,
-    // Terminals
-    Num,
-    Id,
-    // End
-    Eof,
-}
-
-#[derive(Debug)]
-pub struct Token<'a> {
-    pub kind: TokenType,
-    pub value: Option<&'a str>,
-    pub length: usize,
-    pub line: usize,
-    pub col: usize,
-}
 
 #[derive(Debug)]
 pub enum LexError {
@@ -246,8 +205,8 @@ impl<'a> Scanner<'a> {
     ///
     /// # Examples
     /// ```
-    /// use risc_v_compiler::Scanner;
-    /// let mut scanner = Scanner::new("let x := 42;");
+    /// use risc_v_compiler::scanner;
+    /// let mut scanner = scanner::Scanner::new("let x := 42;");
     /// let tokens = scanner.scan();
     /// ```
     pub fn scan(&mut self) -> Result<Vec<Token<'a>>, LexError> {

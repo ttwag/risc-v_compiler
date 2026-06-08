@@ -1,6 +1,6 @@
 use risc_v_compiler::{
-    Scanner,
-    scanner::{LexError, Token, TokenType},
+    scanner::{LexError, Scanner},
+    token::{Token, TokenType},
 };
 
 #[track_caller]
