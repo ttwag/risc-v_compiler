@@ -3,20 +3,20 @@ use std::error::Error;
 use std::fmt;
 
 #[derive(Debug)]
-pub enum LexError {
+pub enum ScanError {
     UnexpectedChar(Option<char>, Location), //character, line, col
 }
-impl fmt::Display for LexError {
+impl fmt::Display for ScanError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            LexError::UnexpectedChar(Some(c), loc) => {
+            ScanError::UnexpectedChar(Some(c), loc) => {
                 write!(
                     f,
                     "Unexpected character: {} at line {} col {}",
                     c, loc.line, loc.col
                 )
             }
-            LexError::UnexpectedChar(None, loc) => {
+            ScanError::UnexpectedChar(None, loc) => {
                 write!(
                     f,
                     "Unexpected end of input at line {} col {}",
@@ -26,7 +26,7 @@ impl fmt::Display for LexError {
         }
     }
 }
-impl Error for LexError {}
+impl Error for ScanError {}
 
 pub struct Scanner<'a> {
     input: &'a str,
@@ -84,7 +84,7 @@ impl<'a> Scanner<'a> {
     /// # Panics (debug)
     /// Panics in debug builds if `self.index` is out of bounds.
     ///
-    fn emit_number(&mut self) -> Result<SyntaxToken<'a>, LexError> {
+    fn emit_number(&mut self) -> Result<SyntaxToken<'a>, ScanError> {
         debug_assert!(
             self.loc.index < self.input.len(),
             "emit_number: index out of bounds"
@@ -97,7 +97,7 @@ impl<'a> Scanner<'a> {
             Some('0') => {
                 self.advance();
                 if matches!(self.peek(), Some('0'..='9')) {
-                    return Err(LexError::UnexpectedChar(self.peek(), self.loc));
+                    return Err(ScanError::UnexpectedChar(self.peek(), self.loc));
                 }
                 Ok(self.capture_st(TokenType::Num, start))
             }
@@ -111,7 +111,7 @@ impl<'a> Scanner<'a> {
                 }
                 Ok(self.capture_st(TokenType::Num, start))
             }
-            _ => Err(LexError::UnexpectedChar(self.peek(), self.loc)),
+            _ => Err(ScanError::UnexpectedChar(self.peek(), self.loc)),
         }
     }
 
@@ -137,7 +137,7 @@ impl<'a> Scanner<'a> {
     /// # Panics (debug)
     /// Panics in debug builds if `self.index` is out of bounds.
     ///
-    fn emit_id(&mut self) -> Result<SyntaxToken<'a>, LexError> {
+    fn emit_id(&mut self) -> Result<SyntaxToken<'a>, ScanError> {
         debug_assert!(
             self.loc.index < self.input.len(),
             "emit_number: index out of bounds"
@@ -156,7 +156,7 @@ impl<'a> Scanner<'a> {
                 }
             }
             _ => {
-                return Err(LexError::UnexpectedChar(self.peek(), self.loc));
+                return Err(ScanError::UnexpectedChar(self.peek(), self.loc));
             }
         }
 
@@ -180,7 +180,7 @@ impl<'a> Scanner<'a> {
     /// let tokens = scanner.scan();
     /// ```
     #[rustfmt::skip]
-    pub fn scan(&mut self) -> Result<Vec<SyntaxToken<'a>>, LexError> {
+    pub fn scan(&mut self) -> Result<Vec<SyntaxToken<'a>>, ScanError> {
         let mut tokens = Vec::new();
         while let Some(curr) = self.peek() {
             let next = self.peek_next();
@@ -202,7 +202,7 @@ impl<'a> Scanner<'a> {
                 ('>', _) => tokens.push({self.advance(); self.capture_st(TokenType::Grt, start)}),
                 ('0'..='9', _) => tokens.push(self.emit_number()?),
                 ('a'..='z' | 'A'..='Z' | '_', _) => tokens.push(self.emit_id()?),
-                (_, _) => return Err(LexError::UnexpectedChar(self.peek(), self.loc)),
+                (_, _) => return Err(ScanError::UnexpectedChar(self.peek(), self.loc)),
             }
         }
         tokens.push(SyntaxToken {
@@ -288,7 +288,7 @@ mod tests {
 
     // ── emit_number ───────────────────────────────────────────────────────────────
     #[test]
-    fn emit_number_matches_number() -> Result<(), LexError> {
+    fn emit_number_matches_number() -> Result<(), ScanError> {
         let mut s = Scanner::new("12345");
         let t = s.emit_number()?;
         assert_eq!(t.value.unwrap(), "12345");
@@ -299,18 +299,18 @@ mod tests {
     fn emit_number_ignores_zero_as_head() {
         let mut s = Scanner::new("09");
         let err = s.emit_number().unwrap_err();
-        assert!(matches!(err, LexError::UnexpectedChar(Some('9'), ..)));
+        assert!(matches!(err, ScanError::UnexpectedChar(Some('9'), ..)));
     }
 
     #[test]
     fn emit_number_no_digit() {
         let mut s = Scanner::new("e");
         let err = s.emit_number().unwrap_err();
-        assert!(matches!(err, LexError::UnexpectedChar(Some('e'), ..)));
+        assert!(matches!(err, ScanError::UnexpectedChar(Some('e'), ..)));
     }
 
     #[test]
-    fn emit_number_emits_zero() -> Result<(), LexError> {
+    fn emit_number_emits_zero() -> Result<(), ScanError> {
         let mut s = Scanner::new("0");
         let t = s.emit_number()?;
         assert_eq!(t.value.unwrap(), "0");
@@ -322,11 +322,11 @@ mod tests {
     fn emit_id_no_invalid_char() {
         let mut s = Scanner::new("!");
         let err = s.emit_id().unwrap_err();
-        assert!(matches!(err, LexError::UnexpectedChar(Some('!'), ..)));
+        assert!(matches!(err, ScanError::UnexpectedChar(Some('!'), ..)));
     }
 
     #[test]
-    fn emit_id_take_id() -> Result<(), LexError> {
+    fn emit_id_take_id() -> Result<(), ScanError> {
         let mut s = Scanner::new("this_is_an_id");
         let id = s.emit_id()?;
         assert!(matches!(id.value.unwrap(), "this_is_an_id"));
@@ -334,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn emit_id_take_id_containing_keyword() -> Result<(), LexError> {
+    fn emit_id_take_id_containing_keyword() -> Result<(), ScanError> {
         let mut s = Scanner::new("this_is_an_int_id");
         let id = s.emit_id()?;
         assert!(matches!(id.value.unwrap(), "this_is_an_int_id"));
@@ -343,7 +343,7 @@ mod tests {
     }
 
     #[test]
-    fn emit_id_match_keyword() -> Result<(), LexError> {
+    fn emit_id_match_keyword() -> Result<(), ScanError> {
         let mut s = Scanner::new("return");
         let id = s.emit_id()?;
         assert!(matches!(id.value.unwrap(), "return"));
@@ -355,6 +355,6 @@ mod tests {
     fn emit_id_reject_leading_digit() {
         let mut s = Scanner::new("0_hi");
         let err = s.emit_id().unwrap_err();
-        assert!(matches!(err, LexError::UnexpectedChar(Some('0'), ..)));
+        assert!(matches!(err, ScanError::UnexpectedChar(Some('0'), ..)));
     }
 }

@@ -1,5 +1,5 @@
 use risc_v_compiler::{
-    scanner::{LexError, Scanner},
+    scanner::{ScanError, Scanner},
     token::{Location, SyntaxToken, TokenType},
 };
 
@@ -248,5 +248,5 @@ fn scan_function_fib() {
 fn scan_bad_function() {
     let mut s = Scanner::new("fn fib(n: int) -> int []");
     let err = s.scan().unwrap_err();
-    assert!(matches!(err, LexError::UnexpectedChar(Some('['), ..)));
+    assert!(matches!(err, ScanError::UnexpectedChar(Some('['), ..)));
 }
