@@ -1,5 +1,5 @@
 #[derive(Debug, PartialEq)]
-pub enum TokenType {
+pub enum Token {
     // Punctuation
     LParen,
     RParen,
@@ -33,7 +33,7 @@ pub enum TokenType {
 
 #[derive(Debug)]
 pub struct SyntaxToken {
-    pub kind: TokenType,
+    pub token: Token,
     pub span: Span,
 }
 
