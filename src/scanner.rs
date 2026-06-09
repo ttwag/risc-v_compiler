@@ -66,7 +66,7 @@ impl<'a> Scanner<'a> {
         c
     }
 
-    fn make_token_from(&self, kind: TokenType, start: Location) -> SyntaxToken<'a> {
+    fn capture_st(&self, kind: TokenType, start: Location) -> SyntaxToken<'a> {
         SyntaxToken {
             kind,
             value: self.input.get(start.index..self.loc.index),
@@ -99,7 +99,7 @@ impl<'a> Scanner<'a> {
                 if matches!(self.peek(), Some('0'..='9')) {
                     return Err(LexError::UnexpectedChar(self.peek(), self.loc));
                 }
-                Ok(self.make_token_from(TokenType::Num, start))
+                Ok(self.capture_st(TokenType::Num, start))
             }
             Some('1'..='9') => {
                 self.advance();
@@ -109,7 +109,7 @@ impl<'a> Scanner<'a> {
                     }
                     self.advance();
                 }
-                Ok(self.make_token_from(TokenType::Num, start))
+                Ok(self.capture_st(TokenType::Num, start))
             }
             _ => Err(LexError::UnexpectedChar(self.peek(), self.loc)),
         }
@@ -161,7 +161,7 @@ impl<'a> Scanner<'a> {
         }
 
         // make token from the current index
-        let mut token = self.make_token_from(TokenType::Id, start);
+        let mut token = self.capture_st(TokenType::Id, start);
         if let Some(kind) = Scanner::match_keyword(token.value) {
             token.kind = kind;
         }
@@ -179,70 +179,27 @@ impl<'a> Scanner<'a> {
     /// let mut scanner = scanner::Scanner::new("let x := 42;");
     /// let tokens = scanner.scan();
     /// ```
+    #[rustfmt::skip]
     pub fn scan(&mut self) -> Result<Vec<SyntaxToken<'a>>, LexError> {
         let mut tokens = Vec::new();
         while let Some(curr) = self.peek() {
             let next = self.peek_next();
             let start = self.loc;
             match (curr, next) {
-                (' ' | '\t' | '\n' | '\r', _) => {
-                    self.advance();
-                }
-                (':', Some('=')) => tokens.push({
-                    self.advance();
-                    self.advance();
-                    self.make_token_from(TokenType::Assignment, start)
-                }),
-                ('=', Some('=')) => tokens.push({
-                    self.advance();
-                    self.advance();
-                    self.make_token_from(TokenType::Equality, start)
-                }),
-                ('-', Some('>')) => tokens.push({
-                    self.advance();
-                    self.advance();
-                    self.make_token_from(TokenType::Arrow, start)
-                }),
-                ('(', _) => tokens.push({
-                    self.advance();
-                    self.make_token_from(TokenType::LParen, start)
-                }),
-                (')', _) => tokens.push({
-                    self.advance();
-                    self.make_token_from(TokenType::RParen, start)
-                }),
-                ('{', _) => tokens.push({
-                    self.advance();
-                    self.make_token_from(TokenType::LCurly, start)
-                }),
-                ('}', _) => tokens.push({
-                    self.advance();
-                    self.make_token_from(TokenType::RCurly, start)
-                }),
-                (';', _) => tokens.push({
-                    self.advance();
-                    self.make_token_from(TokenType::Semi, start)
-                }),
-                (':', _) => tokens.push({
-                    self.advance();
-                    self.make_token_from(TokenType::Colon, start)
-                }),
-                (',', _) => tokens.push({
-                    self.advance();
-                    self.make_token_from(TokenType::Comma, start)
-                }),
-                ('+', _) => tokens.push({
-                    self.advance();
-                    self.make_token_from(TokenType::Plus, start)
-                }),
-                ('-', _) => tokens.push({
-                    self.advance();
-                    self.make_token_from(TokenType::Minus, start)
-                }),
-                ('>', _) => tokens.push({
-                    self.advance();
-                    self.make_token_from(TokenType::Grt, start)
-                }),
+                (' ' | '\t' | '\n' | '\r', _) => {self.advance();}
+                (':', Some('=')) => tokens.push({self.advance(); self.advance(); self.capture_st(TokenType::Assignment, start)}),
+                ('=', Some('=')) => tokens.push({self.advance(); self.advance(); self.capture_st(TokenType::Equality, start)}),
+                ('-', Some('>')) => tokens.push({self.advance(); self.advance(); self.capture_st(TokenType::Arrow, start)}),
+                ('(', _) => tokens.push({self.advance(); self.capture_st(TokenType::LParen, start)}),
+                (')', _) => tokens.push({self.advance(); self.capture_st(TokenType::RParen, start)}),
+                ('{', _) => tokens.push({self.advance(); self.capture_st(TokenType::LCurly, start)}),
+                ('}', _) => tokens.push({self.advance(); self.capture_st(TokenType::RCurly, start)}),
+                (';', _) => tokens.push({self.advance(); self.capture_st(TokenType::Semi, start)}),
+                (':', _) => tokens.push({self.advance(); self.capture_st(TokenType::Colon, start)}),
+                (',', _) => tokens.push({self.advance(); self.capture_st(TokenType::Comma, start)}),
+                ('+', _) => tokens.push({self.advance(); self.capture_st(TokenType::Plus, start)}),
+                ('-', _) => tokens.push({self.advance(); self.capture_st(TokenType::Minus, start)}),
+                ('>', _) => tokens.push({self.advance(); self.capture_st(TokenType::Grt, start)}),
                 ('0'..='9', _) => tokens.push(self.emit_number()?),
                 ('a'..='z' | 'A'..='Z' | '_', _) => tokens.push(self.emit_id()?),
                 (_, _) => return Err(LexError::UnexpectedChar(self.peek(), self.loc)),
