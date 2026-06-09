@@ -181,21 +181,21 @@ impl<'a> Scanner<'a> {
             let next = self.peek_next();
             let start = self.loc;
             match (curr, next) {
-                (' ' | '\t' | '\n' | '\r', _) => {self.advance();}
-                (':', Some('=')) => sts.push({self.advance(); self.advance(); self.capture_st(TokenType::Assignment, start)}),
-                ('=', Some('=')) => sts.push({self.advance(); self.advance(); self.capture_st(TokenType::Equality, start)}),
-                ('-', Some('>')) => sts.push({self.advance(); self.advance(); self.capture_st(TokenType::Arrow, start)}),
-                ('(', _) => sts.push({self.advance(); self.capture_st(TokenType::LParen, start)}),
-                (')', _) => sts.push({self.advance(); self.capture_st(TokenType::RParen, start)}),
-                ('{', _) => sts.push({self.advance(); self.capture_st(TokenType::LCurly, start)}),
-                ('}', _) => sts.push({self.advance(); self.capture_st(TokenType::RCurly, start)}),
-                (';', _) => sts.push({self.advance(); self.capture_st(TokenType::Semi, start)}),
-                (':', _) => sts.push({self.advance(); self.capture_st(TokenType::Colon, start)}),
-                (',', _) => sts.push({self.advance(); self.capture_st(TokenType::Comma, start)}),
-                ('+', _) => sts.push({self.advance(); self.capture_st(TokenType::Plus, start)}),
-                ('-', _) => sts.push({self.advance(); self.capture_st(TokenType::Minus, start)}),
-                ('>', _) => sts.push({self.advance(); self.capture_st(TokenType::Grt, start)}),
-                ('0'..='9', _) => sts.push({self.advance_number()?; self.capture_st(TokenType::Num, start)}),
+                (' ' | '\t' | '\n' | '\r', _)    => {self.advance();}
+                (':', Some('='))                 => sts.push({self.advance(); self.advance(); self.capture_st(TokenType::Assignment, start)}),
+                ('=', Some('='))                 => sts.push({self.advance(); self.advance(); self.capture_st(TokenType::Equality, start)}),
+                ('-', Some('>'))                 => sts.push({self.advance(); self.advance(); self.capture_st(TokenType::Arrow, start)}),
+                ('(', _)                         => sts.push({self.advance(); self.capture_st(TokenType::LParen, start)}),
+                (')', _)                         => sts.push({self.advance(); self.capture_st(TokenType::RParen, start)}),
+                ('{', _)                         => sts.push({self.advance(); self.capture_st(TokenType::LCurly, start)}),
+                ('}', _)                         => sts.push({self.advance(); self.capture_st(TokenType::RCurly, start)}),
+                (';', _)                         => sts.push({self.advance(); self.capture_st(TokenType::Semi, start)}),
+                (':', _)                         => sts.push({self.advance(); self.capture_st(TokenType::Colon, start)}),
+                (',', _)                         => sts.push({self.advance(); self.capture_st(TokenType::Comma, start)}),
+                ('+', _)                         => sts.push({self.advance(); self.capture_st(TokenType::Plus, start)}),
+                ('-', _)                         => sts.push({self.advance(); self.capture_st(TokenType::Minus, start)}),
+                ('>', _)                         => sts.push({self.advance(); self.capture_st(TokenType::Grt, start)}),
+                ('0'..='9', _)                   => sts.push({self.advance_number()?; self.capture_st(TokenType::Num, start)}),
                 ('a'..='z' | 'A'..='Z' | '_', _) => sts.push({self.advance_id()?; self.capture_st(TokenType::Id, start)}),
                 (_, _) => return Err(ScanError::UnexpectedChar(self.peek(), self.loc)),
             }
