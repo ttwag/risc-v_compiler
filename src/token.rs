@@ -32,10 +32,15 @@ pub enum TokenType {
 }
 
 #[derive(Debug)]
-pub struct SyntaxToken<'a> {
+pub struct SyntaxToken {
     pub kind: TokenType,
-    pub value: Option<&'a str>,
     pub span: Span,
+}
+
+impl<'a> SyntaxToken {
+    pub fn get_str(&self, stream: &'a str) -> Option<&'a str> {
+        stream.get(self.span.start.index..self.span.end.index)
+    }
 }
 
 #[derive(Debug)]

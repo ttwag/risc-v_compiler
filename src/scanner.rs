@@ -66,7 +66,7 @@ impl<'a> Scanner<'a> {
         c
     }
 
-    fn capture_st(&self, kind: TokenType, start: Location) -> SyntaxToken<'a> {
+    fn capture_st(&self, kind: TokenType, start: Location) -> SyntaxToken {
         assert!(
             start.index < self.loc.index,
             "capture_st: starting index must be less than current index"
@@ -78,7 +78,6 @@ impl<'a> Scanner<'a> {
 
         SyntaxToken {
             kind,
-            value: self.input.get(start.index..self.loc.index),
             span: Span {
                 start,
                 end: self.loc,
@@ -93,7 +92,7 @@ impl<'a> Scanner<'a> {
     /// # Panics (debug)
     /// Panics in debug builds if `self.index` is out of bounds.
     ///
-    fn emit_number(&mut self) -> Result<SyntaxToken<'a>, ScanError> {
+    fn emit_number(&mut self) -> Result<SyntaxToken, ScanError> {
         debug_assert!(
             self.loc.index < self.input.len(),
             "emit_number: index out of bounds"
@@ -124,8 +123,8 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn match_keyword(s: Option<&str>) -> Option<TokenType> {
-        match s {
+    fn match_keyword(&self, st: &SyntaxToken) -> Option<TokenType> {
+        match st.get_str(self.input) {
             Some("int") => Some(TokenType::Int),
             Some("let") => Some(TokenType::Let),
             Some("while") => Some(TokenType::While),
@@ -146,7 +145,7 @@ impl<'a> Scanner<'a> {
     /// # Panics (debug)
     /// Panics in debug builds if `self.index` is out of bounds.
     ///
-    fn emit_id(&mut self) -> Result<SyntaxToken<'a>, ScanError> {
+    fn emit_id(&mut self) -> Result<SyntaxToken, ScanError> {
         debug_assert!(
             self.loc.index < self.input.len(),
             "emit_number: index out of bounds"
@@ -171,7 +170,7 @@ impl<'a> Scanner<'a> {
 
         // make token from the current index
         let mut token = self.capture_st(TokenType::Id, start);
-        if let Some(kind) = Scanner::match_keyword(token.value) {
+        if let Some(kind) = self.match_keyword(&token) {
             token.kind = kind;
         }
         Ok(token)
@@ -189,7 +188,7 @@ impl<'a> Scanner<'a> {
     /// let tokens = scanner.scan();
     /// ```
     #[rustfmt::skip]
-    pub fn scan(&mut self) -> Result<Vec<SyntaxToken<'a>>, ScanError> {
+    pub fn scan(&mut self) -> Result<Vec<SyntaxToken>, ScanError> {
         let mut tokens = Vec::new();
         while let Some(curr) = self.peek() {
             let next = self.peek_next();
@@ -214,14 +213,7 @@ impl<'a> Scanner<'a> {
                 (_, _) => return Err(ScanError::UnexpectedChar(self.peek(), self.loc)),
             }
         }
-        tokens.push(SyntaxToken {
-            kind: TokenType::Eof,
-            value: None,
-            span: Span {
-                start: self.loc,
-                end: self.loc,
-            },
-        });
+        tokens.push(SyntaxToken {kind: TokenType::Eof, span: Span {start: self.loc, end: self.loc,}});
         Ok(tokens)
     }
 }
@@ -300,7 +292,8 @@ mod tests {
     fn emit_number_matches_number() -> Result<(), ScanError> {
         let mut s = Scanner::new("12345");
         let t = s.emit_number()?;
-        assert_eq!(t.value.unwrap(), "12345");
+        assert_eq!(t.span.start.index, 0);
+        assert_eq!(t.span.end.index, 5);
         Ok(())
     }
 
@@ -322,7 +315,8 @@ mod tests {
     fn emit_number_emits_zero() -> Result<(), ScanError> {
         let mut s = Scanner::new("0");
         let t = s.emit_number()?;
-        assert_eq!(t.value.unwrap(), "0");
+        assert_eq!(t.span.start.index, 0);
+        assert_eq!(t.span.end.index, 1);
         Ok(())
     }
 
@@ -338,7 +332,8 @@ mod tests {
     fn emit_id_take_id() -> Result<(), ScanError> {
         let mut s = Scanner::new("this_is_an_id");
         let id = s.emit_id()?;
-        assert!(matches!(id.value.unwrap(), "this_is_an_id"));
+        assert_eq!(id.span.start.index, 0);
+        assert_eq!(id.span.end.index, 13);
         Ok(())
     }
 
@@ -346,7 +341,8 @@ mod tests {
     fn emit_id_take_id_containing_keyword() -> Result<(), ScanError> {
         let mut s = Scanner::new("this_is_an_int_id");
         let id = s.emit_id()?;
-        assert!(matches!(id.value.unwrap(), "this_is_an_int_id"));
+        assert_eq!(id.span.start.index, 0);
+        assert_eq!(id.span.end.index, 17);
         assert!(matches!(id.kind, TokenType::Id));
         Ok(())
     }
@@ -355,7 +351,8 @@ mod tests {
     fn emit_id_match_keyword() -> Result<(), ScanError> {
         let mut s = Scanner::new("return");
         let id = s.emit_id()?;
-        assert!(matches!(id.value.unwrap(), "return"));
+        assert_eq!(id.span.start.index, 0);
+        assert_eq!(id.span.end.index, 6);
         assert!(matches!(id.kind, TokenType::Return));
         Ok(())
     }
