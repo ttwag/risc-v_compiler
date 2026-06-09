@@ -87,18 +87,16 @@ impl<'a> Scanner<'a> {
 
     ///
     /// From current input index, scans for a number matching the pattern 0 | [1-9][0-9]*
-    /// and return the tokenized result. Advanced past all consumed digits.
+    /// Advanced past all consumed digits.
     /// Returns an error when no digit or zero leading other digits
     /// # Panics (debug)
     /// Panics in debug builds if `self.index` is out of bounds.
     ///
-    fn emit_number(&mut self) -> Result<SyntaxToken, ScanError> {
+    fn advance_number(&mut self) -> Result<(), ScanError> {
         debug_assert!(
             self.loc.index < self.input.len(),
             "emit_number: index out of bounds"
         );
-
-        let start = self.loc;
 
         // advance
         match self.peek() {
@@ -107,51 +105,33 @@ impl<'a> Scanner<'a> {
                 if matches!(self.peek(), Some('0'..='9')) {
                     return Err(ScanError::UnexpectedChar(self.peek(), self.loc));
                 }
-                Ok(self.capture_st(TokenType::Num, start))
+                Ok(())
             }
             Some('1'..='9') => {
-                self.advance();
                 while let Some(next) = self.peek() {
                     if !matches!(next, '0'..='9') {
                         break;
                     }
                     self.advance();
                 }
-                Ok(self.capture_st(TokenType::Num, start))
+                Ok(())
             }
             _ => Err(ScanError::UnexpectedChar(self.peek(), self.loc)),
         }
     }
 
-    fn match_keyword(&self, st: &SyntaxToken) -> Option<TokenType> {
-        match st.get_str(self.input) {
-            Some("int") => Some(TokenType::Int),
-            Some("let") => Some(TokenType::Let),
-            Some("while") => Some(TokenType::While),
-            Some("if") => Some(TokenType::If),
-            Some("elif") => Some(TokenType::ElseIf),
-            Some("else") => Some(TokenType::Else),
-            Some("return") => Some(TokenType::Return),
-            Some("fn") => Some(TokenType::Function),
-            _ => None,
-        }
-    }
-
     ///
     /// From current input index, scans for a number matching the pattern [a-zA-Z_][a-zA-Z_0-9]*
-    /// and return the tokenized result (will replace with keyword if needed).
     /// Advanced past all consumed characters.
     /// Returns an error when seeing an invalid character
     /// # Panics (debug)
     /// Panics in debug builds if `self.index` is out of bounds.
     ///
-    fn emit_id(&mut self) -> Result<SyntaxToken, ScanError> {
+    fn advance_id(&mut self) -> Result<(), ScanError> {
         debug_assert!(
             self.loc.index < self.input.len(),
             "emit_number: index out of bounds"
         );
-
-        let start = self.loc;
 
         //advance
         match self.peek() {
@@ -167,13 +147,23 @@ impl<'a> Scanner<'a> {
                 return Err(ScanError::UnexpectedChar(self.peek(), self.loc));
             }
         }
+        Ok(())
+    }
 
-        // make token from the current index
-        let mut st = self.capture_st(TokenType::Id, start);
-        if let Some(kind) = self.match_keyword(&st) {
-            st.kind = kind;
+    fn apply_keyword(&self, sts: &mut Vec<SyntaxToken>) {
+        for st in sts {
+            st.kind = match st.get_str(self.input) {
+                Some("int") => TokenType::Int,
+                Some("let") => TokenType::Let,
+                Some("while") => TokenType::While,
+                Some("if") => TokenType::If,
+                Some("elif") => TokenType::ElseIf,
+                Some("else") => TokenType::Else,
+                Some("return") => TokenType::Return,
+                Some("fn") => TokenType::Function,
+                _ => continue,
+            }
         }
-        Ok(st)
     }
 
     /// Scans the input and returns a list of tokens as defined in grammar.ebnf.
@@ -205,11 +195,12 @@ impl<'a> Scanner<'a> {
                 ('+', _) => sts.push({self.advance(); self.capture_st(TokenType::Plus, start)}),
                 ('-', _) => sts.push({self.advance(); self.capture_st(TokenType::Minus, start)}),
                 ('>', _) => sts.push({self.advance(); self.capture_st(TokenType::Grt, start)}),
-                ('0'..='9', _) => sts.push(self.emit_number()?),
-                ('a'..='z' | 'A'..='Z' | '_', _) => sts.push(self.emit_id()?),
+                ('0'..='9', _) => sts.push({self.advance_number()?; self.capture_st(TokenType::Num, start)}),
+                ('a'..='z' | 'A'..='Z' | '_', _) => sts.push({self.advance_id()?; self.capture_st(TokenType::Id, start)}),
                 (_, _) => return Err(ScanError::UnexpectedChar(self.peek(), self.loc)),
             }
         }
+        self.apply_keyword(&mut sts);
         sts.push(SyntaxToken {kind: TokenType::Eof, span: Span {start: self.loc, end: self.loc,}});
         Ok(sts)
     }
@@ -288,32 +279,30 @@ mod tests {
     #[test]
     fn emit_number_matches_number() -> Result<(), ScanError> {
         let mut s = Scanner::new("12345");
-        let st = s.emit_number()?;
-        assert_eq!(st.span.start.index, 0);
-        assert_eq!(st.span.end.index, 5);
+        let _ = s.advance_number()?;
+        assert_eq!(s.loc.index, 5);
         Ok(())
     }
 
     #[test]
     fn emit_number_ignores_zero_as_head() {
         let mut s = Scanner::new("09");
-        let err = s.emit_number().unwrap_err();
+        let err = s.advance_number().unwrap_err();
         assert!(matches!(err, ScanError::UnexpectedChar(Some('9'), ..)));
     }
 
     #[test]
     fn emit_number_no_digit() {
         let mut s = Scanner::new("e");
-        let err = s.emit_number().unwrap_err();
+        let err = s.advance_number().unwrap_err();
         assert!(matches!(err, ScanError::UnexpectedChar(Some('e'), ..)));
     }
 
     #[test]
     fn emit_number_emits_zero() -> Result<(), ScanError> {
         let mut s = Scanner::new("0");
-        let st = s.emit_number()?;
-        assert_eq!(st.span.start.index, 0);
-        assert_eq!(st.span.end.index, 1);
+        let _ = s.advance_number()?;
+        assert_eq!(s.loc.index, 1);
         Ok(())
     }
 
@@ -321,43 +310,38 @@ mod tests {
     #[test]
     fn emit_id_no_invalid_char() {
         let mut s = Scanner::new("!");
-        let err = s.emit_id().unwrap_err();
+        let err = s.advance_id().unwrap_err();
         assert!(matches!(err, ScanError::UnexpectedChar(Some('!'), ..)));
     }
 
     #[test]
     fn emit_id_take_id() -> Result<(), ScanError> {
         let mut s = Scanner::new("this_is_an_id");
-        let id = s.emit_id()?;
-        assert_eq!(id.span.start.index, 0);
-        assert_eq!(id.span.end.index, 13);
+        let _ = s.advance_id()?;
+        assert_eq!(s.loc.index, 13);
         Ok(())
     }
 
     #[test]
     fn emit_id_take_id_containing_keyword() -> Result<(), ScanError> {
         let mut s = Scanner::new("this_is_an_int_id");
-        let id = s.emit_id()?;
-        assert_eq!(id.span.start.index, 0);
-        assert_eq!(id.span.end.index, 17);
-        assert!(matches!(id.kind, TokenType::Id));
+        let _ = s.advance_id()?;
+        assert_eq!(s.loc.index, 17);
         Ok(())
     }
 
     #[test]
     fn emit_id_match_keyword() -> Result<(), ScanError> {
         let mut s = Scanner::new("return");
-        let id = s.emit_id()?;
-        assert_eq!(id.span.start.index, 0);
-        assert_eq!(id.span.end.index, 6);
-        assert!(matches!(id.kind, TokenType::Return));
+        let _ = s.advance_id()?;
+        assert_eq!(s.loc.index, 6);
         Ok(())
     }
 
     #[test]
     fn emit_id_reject_leading_digit() {
         let mut s = Scanner::new("0_hi");
-        let err = s.emit_id().unwrap_err();
+        let err = s.advance_id().unwrap_err();
         assert!(matches!(err, ScanError::UnexpectedChar(Some('0'), ..)));
     }
 }
