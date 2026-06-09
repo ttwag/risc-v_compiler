@@ -66,13 +66,13 @@ impl<'a> Scanner<'a> {
         c
     }
 
-    fn make_token_from(&self, kind: TokenType, start: usize, loc: Location) -> SyntaxToken<'a> {
+    fn make_token_from(&self, kind: TokenType, start: Location) -> SyntaxToken<'a> {
         SyntaxToken {
             kind,
-            value: self.input.get(start..self.loc.index),
+            value: self.input.get(start.index..self.loc.index),
             span: Span {
-                start: loc,
-                end: loc,
+                start,
+                end: self.loc,
             },
         }
     }
@@ -93,13 +93,12 @@ impl<'a> Scanner<'a> {
             self.input.len() - self.loc.index
         );
 
-        let start = self.loc.index;
-        let loc = self.loc;
+        let start = self.loc;
 
         for _ in 0..len {
             self.advance();
         }
-        self.make_token_from(kind, start, loc)
+        self.make_token_from(kind, start)
     }
 
     ///
@@ -115,8 +114,7 @@ impl<'a> Scanner<'a> {
             "emit_number: index out of bounds"
         );
 
-        let start = self.loc.index;
-        let loc = self.loc;
+        let start = self.loc;
 
         // advance
         match self.peek() {
@@ -125,7 +123,7 @@ impl<'a> Scanner<'a> {
                 if matches!(self.peek(), Some('0'..='9')) {
                     return Err(LexError::UnexpectedChar(self.peek(), self.loc));
                 }
-                Ok(self.make_token_from(TokenType::Num, start, loc))
+                Ok(self.make_token_from(TokenType::Num, start))
             }
             Some('1'..='9') => {
                 self.advance();
@@ -135,7 +133,7 @@ impl<'a> Scanner<'a> {
                     }
                     self.advance();
                 }
-                Ok(self.make_token_from(TokenType::Num, start, loc))
+                Ok(self.make_token_from(TokenType::Num, start))
             }
             _ => Err(LexError::UnexpectedChar(self.peek(), self.loc)),
         }
@@ -169,8 +167,7 @@ impl<'a> Scanner<'a> {
             "emit_number: index out of bounds"
         );
 
-        let start = self.loc.index;
-        let loc = self.loc;
+        let start = self.loc;
 
         //advance
         match self.peek() {
@@ -188,7 +185,7 @@ impl<'a> Scanner<'a> {
         }
 
         // make token from the current index
-        let mut token = self.make_token_from(TokenType::Id, start, loc);
+        let mut token = self.make_token_from(TokenType::Id, start);
         if let Some(kind) = Scanner::match_keyword(token.value) {
             token.kind = kind;
         }
