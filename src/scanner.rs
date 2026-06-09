@@ -67,6 +67,15 @@ impl<'a> Scanner<'a> {
     }
 
     fn capture_st(&self, kind: TokenType, start: Location) -> SyntaxToken<'a> {
+        assert!(
+            start.index < self.loc.index,
+            "capture_st: starting index must be less than current index"
+        );
+        assert!(
+            self.loc.index <= self.input.len(),
+            "capture_st: index out of bound"
+        );
+
         SyntaxToken {
             kind,
             value: self.input.get(start.index..self.loc.index),
