@@ -78,30 +78,6 @@ impl<'a> Scanner<'a> {
     }
 
     ///
-    /// emit is used when the kind and length of the token is known.
-    /// From current input index, emit scans for a number matching the pattern .{len}
-    /// and return the tokenized result with the input kind (it doesn't type-check kind and value).
-    /// Advances past all consumed characters.
-    ///
-    /// Panics when len + self.index is greater than the length of self.input.
-    ///
-    fn emit(&mut self, kind: TokenType, len: usize) -> SyntaxToken<'a> {
-        assert!(len >= 1, "emit: len must be >= 1, got {len}");
-        assert!(
-            self.loc.index + len <= self.input.len(),
-            "emit: len({len}) exceeds remaining input ({} remaining)",
-            self.input.len() - self.loc.index
-        );
-
-        let start = self.loc;
-
-        for _ in 0..len {
-            self.advance();
-        }
-        self.make_token_from(kind, start)
-    }
-
-    ///
     /// From current input index, scans for a number matching the pattern 0 | [1-9][0-9]*
     /// and return the tokenized result. Advanced past all consumed digits.
     /// Returns an error when no digit or zero leading other digits
@@ -207,23 +183,66 @@ impl<'a> Scanner<'a> {
         let mut tokens = Vec::new();
         while let Some(curr) = self.peek() {
             let next = self.peek_next();
+            let start = self.loc;
             match (curr, next) {
                 (' ' | '\t' | '\n' | '\r', _) => {
                     self.advance();
                 }
-                (':', Some('=')) => tokens.push(self.emit(TokenType::Assignment, 2)),
-                ('=', Some('=')) => tokens.push(self.emit(TokenType::Equality, 2)),
-                ('-', Some('>')) => tokens.push(self.emit(TokenType::Arrow, 2)),
-                ('(', _) => tokens.push(self.emit(TokenType::LParen, 1)),
-                (')', _) => tokens.push(self.emit(TokenType::RParen, 1)),
-                ('{', _) => tokens.push(self.emit(TokenType::LCurly, 1)),
-                ('}', _) => tokens.push(self.emit(TokenType::RCurly, 1)),
-                (';', _) => tokens.push(self.emit(TokenType::Semi, 1)),
-                (':', _) => tokens.push(self.emit(TokenType::Colon, 1)),
-                (',', _) => tokens.push(self.emit(TokenType::Comma, 1)),
-                ('+', _) => tokens.push(self.emit(TokenType::Plus, 1)),
-                ('-', _) => tokens.push(self.emit(TokenType::Minus, 1)),
-                ('>', _) => tokens.push(self.emit(TokenType::Grt, 1)),
+                (':', Some('=')) => tokens.push({
+                    self.advance();
+                    self.advance();
+                    self.make_token_from(TokenType::Assignment, start)
+                }),
+                ('=', Some('=')) => tokens.push({
+                    self.advance();
+                    self.advance();
+                    self.make_token_from(TokenType::Equality, start)
+                }),
+                ('-', Some('>')) => tokens.push({
+                    self.advance();
+                    self.advance();
+                    self.make_token_from(TokenType::Arrow, start)
+                }),
+                ('(', _) => tokens.push({
+                    self.advance();
+                    self.make_token_from(TokenType::LParen, start)
+                }),
+                (')', _) => tokens.push({
+                    self.advance();
+                    self.make_token_from(TokenType::RParen, start)
+                }),
+                ('{', _) => tokens.push({
+                    self.advance();
+                    self.make_token_from(TokenType::LCurly, start)
+                }),
+                ('}', _) => tokens.push({
+                    self.advance();
+                    self.make_token_from(TokenType::RCurly, start)
+                }),
+                (';', _) => tokens.push({
+                    self.advance();
+                    self.make_token_from(TokenType::Semi, start)
+                }),
+                (':', _) => tokens.push({
+                    self.advance();
+                    self.make_token_from(TokenType::Colon, start)
+                }),
+                (',', _) => tokens.push({
+                    self.advance();
+                    self.make_token_from(TokenType::Comma, start)
+                }),
+                ('+', _) => tokens.push({
+                    self.advance();
+                    self.make_token_from(TokenType::Plus, start)
+                }),
+                ('-', _) => tokens.push({
+                    self.advance();
+                    self.make_token_from(TokenType::Minus, start)
+                }),
+                ('>', _) => tokens.push({
+                    self.advance();
+                    self.make_token_from(TokenType::Grt, start)
+                }),
                 ('0'..='9', _) => tokens.push(self.emit_number()?),
                 ('a'..='z' | 'A'..='Z' | '_', _) => tokens.push(self.emit_id()?),
                 (_, _) => return Err(LexError::UnexpectedChar(self.peek(), self.loc)),
@@ -308,42 +327,6 @@ mod tests {
                 col: 1
             }
         );
-    }
-
-    // ── emit ───────────────────────────────────────────────────────────────
-    #[test]
-    #[should_panic(expected = "emit: len")]
-    fn emit_zero_length() {
-        let mut s = Scanner::new("1");
-        let _ = s.emit(TokenType::Arrow, 0);
-    }
-
-    #[test]
-    #[should_panic(expected = "emit: len")]
-    fn emit_incorrect_length() {
-        let mut s = Scanner::new("");
-        let _ = s.emit(TokenType::Arrow, 10);
-    }
-
-    #[test]
-    fn emit_single_char() {
-        let mut s = Scanner::new("(");
-        let token = s.emit(TokenType::LParen, 1);
-        assert_eq!(token.value, Some("("));
-    }
-
-    #[test]
-    fn emit_multi_char() {
-        let mut s = Scanner::new(":=");
-        let token = s.emit(TokenType::Assignment, 2);
-        assert_eq!(token.value, Some(":="));
-    }
-
-    #[test]
-    fn emit_incorrect_type() {
-        let mut s = Scanner::new(":=");
-        let token = s.emit(TokenType::Equality, 2);
-        assert_eq!(token.value, Some(":="));
     }
 
     // ── emit_number ───────────────────────────────────────────────────────────────
