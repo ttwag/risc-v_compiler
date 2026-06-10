@@ -45,7 +45,6 @@ stmt = ID ':=' expr ';'
      | 'let' ID ':' type ':=' expr ';'
      | 'if' '(' expr ')' '{' stmt* '}' ('elif' '(' expr ')' '{' stmt* '}')* ('else' '{' stmt* '}')?
      | 'while' '(' expr ')' '{' stmt* '}'
-     | return_stmt
      ;
 
 return_stmt = 'return' expr ';' ;
@@ -57,7 +56,7 @@ arithmetic_expr = atom_expr (('+' | '-') atom_expr)* ;
 atom_expr = ID
           | NUM
           | '(' expr ')'
-          | ID '(' expr (',' expr)* ')'; (*function call*)
+          | ID '(' (expr (',' expr)*)? ')' (*function call*)
           ;
 
 (* type *)
