@@ -275,7 +275,7 @@ mod tests {
         );
     }
 
-    // ── emit_number ───────────────────────────────────────────────────────────────
+    // ── advance_number ───────────────────────────────────────────────────────────────
     #[test]
     fn emit_number_matches_number() -> Result<(), ScanError> {
         let mut s = Scanner::new("12345");
@@ -306,7 +306,7 @@ mod tests {
         Ok(())
     }
 
-    // ── emit_id ───────────────────────────────────────────────────────────────
+    // ── advance_id ───────────────────────────────────────────────────────────────
     #[test]
     fn emit_id_no_invalid_char() {
         let mut s = Scanner::new("!");
