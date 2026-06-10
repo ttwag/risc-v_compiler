@@ -43,13 +43,13 @@ impl<'a> SyntaxToken {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Span {
     pub start: Location,
     pub end: Location,
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone, Default)]
 pub struct Location {
     pub index: usize, // byte offset into source file
     pub line: usize,  // current line in the file; \n increments line

@@ -22,4 +22,40 @@ impl<'a> Parser<'a> {
         );
         Self { index: 0, sts }
     }
+
+    fn peek(&self) -> &SyntaxToken {
+        self.sts
+            .get(self.index)
+            .expect("peek: parser index out of bounds")
+    }
+
+#[cfg(test)]
+mod tests {
+    use crate::token::Span;
+
+    use super::*;
+
+    // ── peek ──────────────────────────────────────────────────────────────────
+    #[test]
+    fn peek_return_correct_token() {
+        let sts = [SyntaxToken {
+            token: Token::Eof,
+            span: Span::default(),
+        }];
+        let p = Parser::new(&sts);
+
+        assert_eq!(p.peek().token, Token::Eof);
+    }
+
+    #[test]
+    #[should_panic(expected = "peek: parser index out of bounds")]
+    fn peek_crash_with_index_out_of_bound() {
+        let sts = [SyntaxToken {
+            token: Token::Eof,
+            span: Span::default(),
+        }];
+        let mut p = Parser::new(&sts);
+        p.index += 1;
+        p.peek();
+    }
 }
