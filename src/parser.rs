@@ -1,5 +1,6 @@
 use crate::token::{SyntaxToken, Token};
 
+#[derive(Debug, PartialEq)]
 enum ParseError {
     UnexpectedToken,
     UnexpectedEof,
@@ -42,6 +43,24 @@ impl<'a> Parser<'a> {
         }
         curr
     }
+
+    fn expect(&mut self, token: Token) -> Result<&SyntaxToken, ParseError> {
+        assert!(token != Token::Eof, "expect: cannot expect Eof");
+        let curr = self
+            .sts
+            .get(self.index)
+            .expect("expect: parser index out of bounds");
+        if curr.token == token {
+            self.index += 1;
+            Ok(curr)
+        } else {
+            match curr.token {
+                Token::Eof => Err(ParseError::UnexpectedEof),
+                _ => Err(ParseError::UnexpectedToken),
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -99,6 +118,66 @@ mod tests {
         }];
         let mut p = Parser::new(&sts);
         assert_eq!(p.advance().token, Token::Eof);
+        assert_eq!(p.index, 0);
+    }
+
+    // ── expect ──────────────────────────────────────────────────────────────────
+    #[test]
+    #[should_panic(expected = "expect: cannot expect Eof")]
+    fn expect_eof() {
+        let sts = [SyntaxToken {
+            token: Token::Eof,
+            span: Span::default(),
+        }];
+        let mut p = Parser::new(&sts);
+        let _ = p.expect(Token::Eof);
+    }
+
+    #[test]
+    fn expect_token_return_token_and_advance() {
+        let sts = [
+            SyntaxToken {
+                token: Token::Arrow,
+                span: Span::default(),
+            },
+            SyntaxToken {
+                token: Token::Eof,
+                span: Span::default(),
+            },
+        ];
+        let mut p = Parser::new(&sts);
+        let result = p.expect(Token::Arrow).unwrap();
+        assert_eq!(*result, sts[0]);
+        assert_eq!(p.index, 1)
+    }
+
+    #[test]
+    fn expect_mismatch_token_return_unexpected_token() {
+        let sts = [
+            SyntaxToken {
+                token: Token::Arrow,
+                span: Span::default(),
+            },
+            SyntaxToken {
+                token: Token::Eof,
+                span: Span::default(),
+            },
+        ];
+        let mut p = Parser::new(&sts);
+        let result = p.expect(Token::LParen).unwrap_err();
+        assert_eq!(result, ParseError::UnexpectedToken);
+        assert_eq!(p.index, 0);
+    }
+
+    #[test]
+    fn expect_mismatch_token_return_unexpected_eof() {
+        let sts = [SyntaxToken {
+            token: Token::Eof,
+            span: Span::default(),
+        }];
+        let mut p = Parser::new(&sts);
+        let result = p.expect(Token::LParen).unwrap_err();
+        assert_eq!(result, ParseError::UnexpectedEof);
         assert_eq!(p.index, 0);
     }
 }

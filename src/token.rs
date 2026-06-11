@@ -31,7 +31,7 @@ pub enum Token {
     Eof,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SyntaxToken {
     pub token: Token,
     pub span: Span,
@@ -43,7 +43,7 @@ impl<'a> SyntaxToken {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Span {
     pub start: Location,
     pub end: Location,
