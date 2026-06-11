@@ -29,6 +29,20 @@ impl<'a> Parser<'a> {
             .expect("peek: parser index out of bounds")
     }
 
+    fn advance(&mut self) -> &SyntaxToken {
+        let curr = self
+            .sts
+            .get(self.index)
+            .expect("advance: parser index out of bounds");
+        match curr.token {
+            Token::Eof => {}
+            _ => {
+                self.index += 1;
+            }
+        }
+        curr
+    }
+
 #[cfg(test)]
 mod tests {
     use crate::token::Span;
@@ -57,5 +71,34 @@ mod tests {
         let mut p = Parser::new(&sts);
         p.index += 1;
         p.peek();
+    }
+
+    // ── advance ──────────────────────────────────────────────────────────────────
+    #[test]
+    fn advance_pass_token() {
+        let sts = [
+            SyntaxToken {
+                token: Token::RCurly,
+                span: Span::default(),
+            },
+            SyntaxToken {
+                token: Token::Eof,
+                span: Span::default(),
+            },
+        ];
+        let mut p = Parser::new(&sts);
+        assert_eq!(p.advance().token, Token::RCurly);
+        assert_eq!(p.index, 1);
+    }
+
+    #[test]
+    fn advance_not_pass_eof() {
+        let sts = [SyntaxToken {
+            token: Token::Eof,
+            span: Span::default(),
+        }];
+        let mut p = Parser::new(&sts);
+        assert_eq!(p.advance().token, Token::Eof);
+        assert_eq!(p.index, 0);
     }
 }
