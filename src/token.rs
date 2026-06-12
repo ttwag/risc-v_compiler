@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     // Punctuation
     LParen,
@@ -31,7 +31,7 @@ pub enum Token {
     Eof,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct SyntaxToken {
     pub token: Token,
     pub span: Span,
@@ -43,7 +43,7 @@ impl<'a> SyntaxToken {
     }
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct Span {
     pub start: Location,
     pub end: Location,

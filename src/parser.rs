@@ -1,4 +1,5 @@
-use crate::token::{SyntaxToken, Token};
+use crate::ast::*;
+use crate::token::*;
 
 #[derive(Debug, PartialEq)]
 enum ParseError {
@@ -66,12 +67,112 @@ impl<'a> Parser<'a> {
             }
         }
     }
+
+
+    // ── Expressions ──────────────────────────────────────────────────────────────────
+    fn parse_expr(&mut self) -> Result<Expr, ParseError> {
+        let arith_expr_left = self.parse_arith_expr()?;
+        let Ok(op) = self.parse_comp_op() else {
+            return Ok(CompExpr(arith_expr_left, None));
+        };
+        let arith_expr_right = self.parse_arith_expr()?;
+        Ok(CompExpr(arith_expr_left, Some((op, arith_expr_right))))
+    }
+
+    fn parse_comp_op(&mut self) -> Result<CompOp, ParseError> {
+        match self.peek().token {
+            Token::Equality => {
+                self.advance();
+                Ok(CompOp::Equality)
+            }
+            Token::Grt => {
+                self.advance();
+                Ok(CompOp::Grt)
+            }
+            _ => Err(ParseError::UnexpectedToken),
+        }
+    }
+
+    fn parse_arith_expr(&mut self) -> Result<ArithExpr, ParseError> {
+        let atom_expr_left = self.parse_atom_expr()?;
+        let mut op_exprs = Vec::new();
+        loop {
+            let Ok(op) = self.parse_arith_op() else {
+                break;
+            };
+            let atom_expr_right = self.parse_atom_expr()?;
+            op_exprs.push((op, atom_expr_right));
+        }
+        Ok(ArithExpr(atom_expr_left, op_exprs))
+    }
+
+    fn parse_arith_op(&mut self) -> Result<ArithOp, ParseError> {
+        match self.peek().token {
+            Token::Plus => {
+                self.advance();
+                Ok(ArithOp::Plus)
+            }
+            Token::Minus => {
+                self.advance();
+                Ok(ArithOp::Minus)
+            }
+            _ => Err(ParseError::UnexpectedToken),
+        }
+    }
+
+    fn parse_atom_expr(&mut self) -> Result<AtomExpr, ParseError> {
+        let token = self.peek().token.clone();
+        let next_token = self.peek_next().token.clone();
+        match (token, next_token) {
+            (Token::Id, Token::LParen) => self.parse_func_call(),
+            (Token::Id, _) => Ok(AtomExpr::Id(self.parse_id()?)),
+            (Token::Num, _) => Ok(AtomExpr::Num(self.parse_num()?)),
+            (Token::LParen, _) => self.parse_group(),
+            (Token::Eof, _) => Err(ParseError::UnexpectedEof),
+            _ => Err(ParseError::UnexpectedToken),
+        }
+    }
+
+    fn parse_group(&mut self) -> Result<AtomExpr, ParseError> {
+        self.expect(Token::LParen)?;
+        let expr = self.parse_expr()?;
+        self.expect(Token::RParen)?;
+        Ok(AtomExpr::Group(Box::new(expr)))
+    }
+
+    fn parse_func_call(&mut self) -> Result<AtomExpr, ParseError> {
+        let func = self.parse_id()?;
+        self.expect(Token::LParen)?;
+        let mut args = Vec::new();
+
+        if self.peek().token != Token::RParen {
+            args.push(self.parse_expr()?);
+            loop {
+                let Ok(_) = self.expect(Token::Comma) else {
+                    break;
+                };
+                args.push(self.parse_expr()?);
+            }
+        }
+        self.expect(Token::RParen)?;
+        Ok(AtomExpr::Call(func, args))
+    }
+
+    fn parse_id(&mut self) -> Result<Id, ParseError> {
+        Ok(Id {
+            st: self.expect(Token::Id)?.clone(),
+        })
+    }
+
+    fn parse_num(&mut self) -> Result<Num, ParseError> {
+        Ok(Num {
+            st: self.expect(Token::Num)?.clone(),
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::token::Span;
-
     use super::*;
 
     // ── peek ──────────────────────────────────────────────────────────────────
