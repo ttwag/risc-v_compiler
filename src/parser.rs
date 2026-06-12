@@ -27,7 +27,13 @@ impl<'a> Parser<'a> {
     fn peek(&self) -> &SyntaxToken {
         self.sts
             .get(self.index)
-            .expect("peek: parser index out of bounds")
+            .unwrap_or_else(|| self.sts.last().unwrap())
+    }
+
+    fn peek_next(&self) -> &SyntaxToken {
+        self.sts
+            .get(self.index + 1)
+            .unwrap_or_else(|| self.sts.last().unwrap())
     }
 
     fn advance(&mut self) -> &SyntaxToken {
@@ -81,15 +87,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "peek: parser index out of bounds")]
-    fn peek_crash_with_index_out_of_bound() {
+    fn peek_out_of_bound_return_eof() {
         let sts = [SyntaxToken {
             token: Token::Eof,
             span: Span::default(),
         }];
         let mut p = Parser::new(&sts);
         p.index += 1;
-        p.peek();
+        assert_eq!(p.peek().token, Token::Eof);
     }
 
     // ── advance ──────────────────────────────────────────────────────────────────
