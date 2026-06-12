@@ -1,45 +1,45 @@
 use crate::token::SyntaxToken;
 
 // ── AST Definition ───────────────────────────────────────────────────────────────
-struct Program(Vec<FuncDef>);
+pub struct Program(pub Vec<FuncDef>);
 
 // ── Function Definition ───────────────────────────────────────────────────────────────
-struct FuncDef {
-    name: Id,
-    params: Vec<Param>,
-    ret: Type,
-    body: Vec<Stmt>,
-    ret_stmt: ReturnStmt,
+pub struct FuncDef {
+    pub name: Id,
+    pub params: Vec<Param>,
+    pub ret: Type,
+    pub body: Vec<Stmt>,
+    pub ret_stmt: ReturnStmt,
 }
-struct Param(Id, Type);
+pub struct Param(pub Id, pub Type);
 
 // ── Statement ───────────────────────────────────────────────────────────────
-enum Stmt {
+pub enum Stmt {
     Assign(Id, Expr),
     Let(Id, Type, Expr),
     If(Branch, Vec<Branch>, Option<Vec<Stmt>>),
     While(Expr, Vec<Stmt>),
 }
 
-struct Branch(Expr, Vec<Stmt>);
+pub struct Branch(pub Expr, pub Vec<Stmt>);
 
-struct ReturnStmt(Expr);
+pub struct ReturnStmt(pub Expr);
 
 // ── Expression ───────────────────────────────────────────────────────────────
-type Expr = CompExpr;
-enum CompOp {
+pub type Expr = CompExpr;
+pub enum CompOp {
     Grt,
     Equality,
 }
-struct CompExpr(ArithExpr, Option<(CompOp, ArithExpr)>);
+pub struct CompExpr(pub ArithExpr, pub Option<(CompOp, ArithExpr)>);
 
-enum ArithOp {
+pub enum ArithOp {
     Plus,
     Minus,
 }
-struct ArithExpr(AtomExpr, Vec<(ArithOp, AtomExpr)>);
+pub struct ArithExpr(pub AtomExpr, pub Vec<(ArithOp, AtomExpr)>);
 
-enum AtomExpr {
+pub enum AtomExpr {
     Id(Id),
     Num(Num),
     Group(Box<Expr>),
@@ -47,14 +47,15 @@ enum AtomExpr {
 }
 
 // ── Type ───────────────────────────────────────────────────────────────
-enum Type {
+pub enum Type {
     Int,
 }
 
 // ── Terminals ───────────────────────────────────────────────────────────────
-struct Id {
-    st: SyntaxToken,
+pub struct Id {
+    pub st: SyntaxToken,
 }
-struct Num {
-    st: SyntaxToken,
+
+pub struct Num {
+    pub st: SyntaxToken,
 }
