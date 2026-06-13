@@ -222,10 +222,7 @@ impl<'a> Parser<'a> {
     fn parse_arith_expr(&mut self) -> Result<ArithExpr, ParseError> {
         let atom_expr_left = self.parse_atom_expr()?;
         let mut op_exprs = Vec::new();
-        loop {
-            let Ok(op) = self.parse_arith_op() else {
-                break;
-            };
+        while let Ok(op) = self.parse_arith_op() {
             let atom_expr_right = self.parse_atom_expr()?;
             op_exprs.push((op, atom_expr_right));
         }
@@ -273,10 +270,7 @@ impl<'a> Parser<'a> {
 
         if self.peek().token != Token::RParen {
             args.push(self.parse_expr()?);
-            loop {
-                let Ok(_) = self.expect(Token::Comma) else {
-                    break;
-                };
+            while let Ok(_) = self.expect(Token::Comma) {
                 args.push(self.parse_expr()?);
             }
         }
