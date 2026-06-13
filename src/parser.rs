@@ -68,6 +68,53 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // ── Function Definition ──────────────────────────────────────────────────────────────────
+    fn parse_func_def(&mut self) -> Result<FuncDef, ParseError> {
+        self.expect(Token::Function)?;
+        let name = self.parse_id()?;
+        let params = self.parse_param_list()?;
+
+        self.expect(Token::Arrow)?;
+        let ret = self.parse_type()?;
+
+        let mut body = Vec::new();
+        self.expect(Token::LCurly)?;
+        while self.peek().token != Token::Return {
+            body.push(self.parse_stmt()?);
+        }
+        let ret_stmt = self.parse_return_stmt()?;
+        self.expect(Token::RCurly)?;
+
+        Ok(FuncDef {
+            name,
+            params,
+            ret,
+            body,
+            ret_stmt,
+        })
+    }
+
+    fn parse_param_list(&mut self) -> Result<Vec<Param>, ParseError> {
+        self.expect(Token::LParen)?;
+        let mut params = Vec::new();
+
+        if self.peek().token != Token::RParen {
+            params.push(self.parse_param()?);
+            while let Ok(_) = self.expect(Token::Comma) {
+                params.push(self.parse_param()?);
+            }
+        }
+        self.expect(Token::RParen)?;
+        Ok(params)
+    }
+
+    fn parse_param(&mut self) -> Result<Param, ParseError> {
+        let var = self.parse_id()?;
+        self.expect(Token::Colon)?;
+        let param_type = self.parse_type()?;
+        Ok(Param(var, param_type))
+    }
+
     // ── Statements ──────────────────────────────────────────────────────────────────
     fn parse_stmt(&mut self) -> Result<Stmt, ParseError> {
         match self.peek().token {
