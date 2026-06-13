@@ -2,12 +2,12 @@ use crate::ast::*;
 use crate::token::*;
 
 #[derive(Debug, PartialEq)]
-enum ParseError {
+pub enum ParseError {
     UnexpectedToken,
     UnexpectedEof,
 }
 
-struct Parser<'a> {
+pub struct Parser<'a> {
     index: usize,
     sts: &'a [SyntaxToken],
 }
@@ -66,6 +66,43 @@ impl<'a> Parser<'a> {
                 _ => Err(ParseError::UnexpectedToken),
             }
         }
+    }
+
+    /// Parse the input syntax tokens and returns an Abstract Syntax Tree
+    /// The grammar is defined in `grammar.ebnf`.
+    ///
+    /// # Errors
+    ///
+    /// Parsing stops and return an error when hitting unexpected Eof or invalid token
+    ///
+    /// # Examples
+    /// ```
+    /// use risc_v_compiler::token::*;
+    /// use risc_v_compiler::parser;
+    /// let sts = [
+    ///     SyntaxToken { token: Token::Function, span: Span::default() }, // fn
+    ///     SyntaxToken { token: Token::Id,       span: Span::default() }, // example
+    ///     SyntaxToken { token: Token::LParen,   span: Span::default() }, // (
+    ///     SyntaxToken { token: Token::RParen,   span: Span::default() }, // )
+    ///     SyntaxToken { token: Token::Arrow,    span: Span::default() }, // ->
+    ///     SyntaxToken { token: Token::Int,      span: Span::default() }, // int
+    ///     SyntaxToken { token: Token::LCurly,   span: Span::default() }, // {
+    ///     SyntaxToken { token: Token::Return,   span: Span::default() }, // return
+    ///     SyntaxToken { token: Token::Num,      span: Span::default() }, // 0
+    ///     SyntaxToken { token: Token::Semi,     span: Span::default() }, // ;
+    ///     SyntaxToken { token: Token::RCurly,   span: Span::default() }, // }
+    ///     SyntaxToken { token: Token::Eof,      span: Span::default() }, // EOF
+    /// ];
+    /// let mut parser = parser::Parser::new(&sts);
+    /// let ast = parser.parse();
+    /// ```
+    pub fn parse(&mut self) -> Result<Program, ParseError> {
+        let mut func_defs = Vec::new();
+        func_defs.push(self.parse_func_def()?);
+        while self.peek().token != Token::Eof {
+            func_defs.push(self.parse_func_def()?);
+        }
+        Ok(Program(func_defs))
     }
 
     // ── Function Definition ──────────────────────────────────────────────────────────────────
