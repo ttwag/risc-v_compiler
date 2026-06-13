@@ -16,11 +16,15 @@ impl<'a> Parser<'a> {
     /// Creates a new parser over a syntax token slice.
     ///
     /// # Panics
-    /// Panics if `sts` is empty or does not end with `Token::Eof`.
+    /// Panics if `sts` does not end with `Token::Eof` or have more than one `Token::Eof`.
     pub fn new(sts: &'a [SyntaxToken]) -> Self {
         assert!(
             matches!(sts.last(), Some(t) if t.token == Token::Eof),
-            "syntax token slice must end with EOF"
+            "syntax tokens must end with EOF"
+        );
+        assert!(
+            sts.iter().filter(|t| t.token == Token::Eof).count() == 1,
+            "syntax tokens must only have one EOF"
         );
         Self { index: 0, sts }
     }
@@ -344,6 +348,38 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── new ──────────────────────────────────────────────────────────────────
+    #[test]
+    #[should_panic = "syntax tokens must end with EOF"]
+    fn new_sts_without_eof() {
+        let sts = [];
+        let _ = Parser::new(&sts);
+    }
+
+    #[test]
+    #[should_panic = "syntax tokens must only have one EOF"]
+    fn new_sts_with_multiple_eof() {
+        let sts = [
+            SyntaxToken {
+                token: Token::Comma,
+                span: Span::default(),
+            },
+            SyntaxToken {
+                token: Token::Eof,
+                span: Span::default(),
+            },
+            SyntaxToken {
+                token: Token::Comma,
+                span: Span::default(),
+            },
+            SyntaxToken {
+                token: Token::Eof,
+                span: Span::default(),
+            },
+        ];
+        let _ = Parser::new(&sts);
+    }
 
     // ── peek ──────────────────────────────────────────────────────────────────
     #[test]
