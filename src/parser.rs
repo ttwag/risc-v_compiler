@@ -68,6 +68,85 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // ── Statements ──────────────────────────────────────────────────────────────────
+    fn parse_stmt(&mut self) -> Result<Stmt, ParseError> {
+        match self.peek().token {
+            Token::Id => self.parse_assign_stmt(),
+            Token::Let => self.parse_let_stmt(),
+            Token::If => self.parse_if_stmt(),
+            Token::While => self.parse_while_stmt(),
+            Token::Eof => Err(ParseError::UnexpectedEof),
+            _ => Err(ParseError::UnexpectedToken),
+        }
+    }
+
+    fn parse_assign_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let var = self.parse_id()?;
+        self.expect(Token::Assignment)?;
+        let expr = self.parse_expr()?;
+        self.expect(Token::Semi)?;
+        Ok(Stmt::Assign(var, expr))
+    }
+
+    fn parse_let_stmt(&mut self) -> Result<Stmt, ParseError> {
+        self.expect(Token::Let)?;
+        let var = self.parse_id()?;
+        self.expect(Token::Colon)?;
+        let let_type = self.parse_type()?;
+        self.expect(Token::Assignment)?;
+        let expr = self.parse_expr()?;
+        self.expect(Token::Semi)?;
+        Ok(Stmt::Let(var, let_type, expr))
+    }
+
+    fn parse_if_stmt(&mut self) -> Result<Stmt, ParseError> {
+        self.expect(Token::If)?;
+        let if_branch = self.parse_branch()?;
+        let mut elif_branch = Vec::new();
+        let mut else_stmts = None;
+
+        while self.peek().token == Token::ElseIf {
+            self.advance();
+            elif_branch.push(self.parse_branch()?);
+        }
+        if self.peek().token == Token::Else {
+            self.advance();
+            else_stmts = Some(self.parse_stmt_block()?);
+        }
+        Ok(Stmt::If(if_branch, elif_branch, else_stmts))
+    }
+
+    fn parse_branch(&mut self) -> Result<Branch, ParseError> {
+        self.expect(Token::LParen)?;
+        let expr = self.parse_expr()?;
+        self.expect(Token::RParen)?;
+        let stmts = self.parse_stmt_block()?;
+        Ok(Branch(expr, stmts))
+    }
+
+    fn parse_stmt_block(&mut self) -> Result<Vec<Stmt>, ParseError> {
+        self.expect(Token::LCurly)?;
+        let mut stmts = Vec::new();
+
+        while self.peek().token != Token::RCurly {
+            stmts.push(self.parse_stmt()?);
+        }
+        self.expect(Token::RCurly)?;
+        Ok(stmts)
+    }
+
+    fn parse_while_stmt(&mut self) -> Result<Stmt, ParseError> {
+        self.expect(Token::While)?;
+        let Branch(expr, stmts) = self.parse_branch()?;
+        Ok(Stmt::While(expr, stmts))
+    }
+
+    fn parse_return_stmt(&mut self) -> Result<ReturnStmt, ParseError> {
+        self.expect(Token::Return)?;
+        let expr = self.parse_expr()?;
+        self.expect(Token::Semi)?;
+        Ok(ReturnStmt(expr))
+    }
 
     // ── Expressions ──────────────────────────────────────────────────────────────────
     fn parse_expr(&mut self) -> Result<Expr, ParseError> {
@@ -158,6 +237,19 @@ impl<'a> Parser<'a> {
         Ok(AtomExpr::Call(func, args))
     }
 
+    // ── Type ──────────────────────────────────────────────────────────────────
+    fn parse_type(&mut self) -> Result<Type, ParseError> {
+        match self.peek().token {
+            Token::Int => {
+                self.advance();
+                Ok(Type::Int)
+            }
+            Token::Eof => Err(ParseError::UnexpectedEof),
+            _ => Err(ParseError::UnexpectedToken),
+        }
+    }
+
+    // ── Terminals ──────────────────────────────────────────────────────────────────
     fn parse_id(&mut self) -> Result<Id, ParseError> {
         Ok(Id {
             st: self.expect(Token::Id)?.clone(),
