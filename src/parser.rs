@@ -84,18 +84,18 @@ impl<'a> Parser<'a> {
     /// use risc_v_compiler::token::*;
     /// use risc_v_compiler::parser;
     /// let sts = [
-    ///     SyntaxToken { token: Token::Function, span: Span::default() }, // fn
-    ///     SyntaxToken { token: Token::Id,       span: Span::default() }, // example
-    ///     SyntaxToken { token: Token::LParen,   span: Span::default() }, // (
-    ///     SyntaxToken { token: Token::RParen,   span: Span::default() }, // )
-    ///     SyntaxToken { token: Token::Arrow,    span: Span::default() }, // ->
-    ///     SyntaxToken { token: Token::Int,      span: Span::default() }, // int
-    ///     SyntaxToken { token: Token::LCurly,   span: Span::default() }, // {
-    ///     SyntaxToken { token: Token::Return,   span: Span::default() }, // return
-    ///     SyntaxToken { token: Token::Num,      span: Span::default() }, // 0
-    ///     SyntaxToken { token: Token::Semi,     span: Span::default() }, // ;
-    ///     SyntaxToken { token: Token::RCurly,   span: Span::default() }, // }
-    ///     SyntaxToken { token: Token::Eof,      span: Span::default() }, // EOF
+    ///     SyntaxToken { token: Token::Function,                    span: Span::default() }, // fn
+    ///     SyntaxToken { token: Token::Id(String::from("example")), span: Span::default() }, // example
+    ///     SyntaxToken { token: Token::LParen,                      span: Span::default() }, // (
+    ///     SyntaxToken { token: Token::RParen,                      span: Span::default() }, // )
+    ///     SyntaxToken { token: Token::Arrow,                       span: Span::default() }, // ->
+    ///     SyntaxToken { token: Token::Int,                         span: Span::default() }, // int
+    ///     SyntaxToken { token: Token::LCurly,                      span: Span::default() }, // {
+    ///     SyntaxToken { token: Token::Return,                      span: Span::default() }, // return
+    ///     SyntaxToken { token: Token::Num(String::from("0")),      span: Span::default() }, // 0
+    ///     SyntaxToken { token: Token::Semi,                        span: Span::default() }, // ;
+    ///     SyntaxToken { token: Token::RCurly,                      span: Span::default() }, // }
+    ///     SyntaxToken { token: Token::Eof,                         span: Span::default() }, // EOF
     /// ];
     /// let mut parser = parser::Parser::new(&sts);
     /// let ast = parser.parse();
@@ -159,7 +159,7 @@ impl<'a> Parser<'a> {
     // ── Statements ──────────────────────────────────────────────────────────────────
     fn parse_stmt(&mut self) -> Result<Stmt, ParseError> {
         match self.peek().token {
-            Token::Id => self.parse_assign_stmt(),
+            Token::Id(_) => self.parse_assign_stmt(),
             Token::Let => self.parse_let_stmt(),
             Token::If => self.parse_if_stmt(),
             Token::While => self.parse_while_stmt(),
@@ -288,9 +288,9 @@ impl<'a> Parser<'a> {
         let token = self.peek().token.clone();
         let next_token = self.peek_next().token.clone();
         match (token, next_token) {
-            (Token::Id, Token::LParen) => self.parse_func_call(),
-            (Token::Id, _) => Ok(AtomExpr::Id(self.parse_id()?)),
-            (Token::Num, _) => Ok(AtomExpr::Num(self.parse_num()?)),
+            (Token::Id(_), Token::LParen) => self.parse_func_call(),
+            (Token::Id(_), _) => Ok(AtomExpr::Id(self.parse_id()?)),
+            (Token::Num(_), _) => Ok(AtomExpr::Num(self.parse_num()?)),
             (Token::LParen, _) => self.parse_group(),
             (Token::Eof, _) => Err(ParseError::UnexpectedEof),
             _ => Err(ParseError::UnexpectedToken),
@@ -333,15 +333,35 @@ impl<'a> Parser<'a> {
 
     // ── Terminals ──────────────────────────────────────────────────────────────────
     fn parse_id(&mut self) -> Result<Id, ParseError> {
-        Ok(Id {
-            st: self.expect(Token::Id)?.clone(),
-        })
+        let st = self.peek();
+        match &st.token {
+            Token::Id(s) => {
+                let id = Id {
+                    st: st.clone(),
+                    name: String::from(s),
+                };
+                self.advance();
+                Ok(id)
+            }
+            Token::Eof => Err(ParseError::UnexpectedEof),
+            _ => Err(ParseError::UnexpectedToken),
+        }
     }
 
     fn parse_num(&mut self) -> Result<Num, ParseError> {
-        Ok(Num {
-            st: self.expect(Token::Num)?.clone(),
-        })
+        let st = self.peek();
+        match &st.token {
+            Token::Num(s) => {
+                let num = Num {
+                    st: st.clone(),
+                    name: String::from(s),
+                };
+                self.advance();
+                Ok(num)
+            }
+            Token::Eof => Err(ParseError::UnexpectedEof),
+            _ => Err(ParseError::UnexpectedToken),
+        }
     }
 }
 

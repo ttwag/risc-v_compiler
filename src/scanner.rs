@@ -85,6 +85,19 @@ impl<'a> Scanner<'a> {
         }
     }
 
+    fn capture_string(&self, start: Location) -> String {
+        assert!(
+            start.index < self.loc.index,
+            "capture_string: starting index must be less than current index"
+        );
+        assert!(
+            self.loc.index <= self.input.len(),
+            "capture_string: index out of bound"
+        );
+
+        String::from(self.input.get(start.index..self.loc.index).unwrap())
+    }
+
     ///
     /// From current input index, scans for a number matching the pattern 0 | [1-9][0-9]*
     /// Advanced past all consumed digits.
@@ -195,8 +208,8 @@ impl<'a> Scanner<'a> {
                 ('+', _)                         => sts.push({self.advance(); self.capture_st(Token::Plus, start)}),
                 ('-', _)                         => sts.push({self.advance(); self.capture_st(Token::Minus, start)}),
                 ('>', _)                         => sts.push({self.advance(); self.capture_st(Token::Grt, start)}),
-                ('0'..='9', _)                   => sts.push({self.advance_number()?; self.capture_st(Token::Num, start)}),
-                ('a'..='z' | 'A'..='Z' | '_', _) => sts.push({self.advance_id()?; self.capture_st(Token::Id, start)}),
+                ('0'..='9', _)                   => sts.push({self.advance_number()?; self.capture_st(Token::Num(self.capture_string(start)), start)}),
+                ('a'..='z' | 'A'..='Z' | '_', _) => sts.push({self.advance_id()?; self.capture_st(Token::Id(self.capture_string(start)), start)}),
                 (_, _) => return Err(ScanError::UnexpectedChar(self.peek(), self.loc)),
             }
         }

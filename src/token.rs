@@ -25,8 +25,8 @@ pub enum Token {
     Else,
     Return,
     // Terminals
-    Num,
-    Id,
+    Num(String),
+    Id(String),
     // End
     Eof,
 }

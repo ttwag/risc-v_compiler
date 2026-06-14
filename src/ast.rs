@@ -72,9 +72,11 @@ pub enum Type {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Id {
     pub st: SyntaxToken,
+    pub name: String,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Num {
     pub st: SyntaxToken,
+    pub name: String,
 }
