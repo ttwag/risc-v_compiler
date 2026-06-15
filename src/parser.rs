@@ -225,8 +225,7 @@ impl<'a> Parser<'a> {
 
     fn parse_while_stmt(&mut self) -> Result<Stmt, ParseError> {
         self.expect(Token::While)?;
-        let Branch(expr, stmts) = self.parse_branch()?;
-        Ok(Stmt::While(expr, stmts))
+        Ok(Stmt::While(self.parse_branch()?))
     }
 
     fn parse_return_stmt(&mut self) -> Result<ReturnStmt, ParseError> {

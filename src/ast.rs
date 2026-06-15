@@ -25,7 +25,7 @@ pub enum Stmt {
     Assign(Id, Expr),
     Let(Id, Type, Expr),
     If(Branch, Vec<Branch>, Option<Vec<Stmt>>),
-    While(Expr, Vec<Stmt>),
+    While(Branch),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -127,11 +127,7 @@ impl Display for Stmt {
                 }
                 Ok(())
             }
-            Stmt::While(expr, stmts) => {
-                let stmts: Vec<String> = stmts.iter().map(|e| e.to_string()).collect();
-                let stmts_str = format_list_str(stmts, " ");
-                write!(f, "while ( {} ) {{{}}}", expr, stmts_str)
-            }
+            Stmt::While(branch) => write!(f, "while {}", branch),
         }
     }
 }
