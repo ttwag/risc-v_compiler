@@ -3,8 +3,19 @@ use crate::token::*;
 
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
-    UnexpectedToken,
-    UnexpectedEof,
+    UnexpectedToken(Token, usize, usize), //token, line, col
+    UnexpectedEof(usize, usize),          //line, col
+}
+
+impl ParseError {
+    pub fn unexpected(st: &SyntaxToken) -> Self {
+        match st.token {
+            Token::Eof => ParseError::UnexpectedEof(st.span.start.line, st.span.start.col),
+            _ => {
+                ParseError::UnexpectedToken(st.token.clone(), st.span.start.line, st.span.start.col)
+            }
+        }
+    }
 }
 
 pub struct Parser<'a> {
@@ -57,18 +68,15 @@ impl<'a> Parser<'a> {
 
     fn expect(&mut self, token: Token) -> Result<&SyntaxToken, ParseError> {
         assert!(token != Token::Eof, "expect: cannot expect Eof");
-        let curr = self
+        let st = self
             .sts
             .get(self.index)
             .expect("expect: parser index out of bounds");
-        if curr.token == token {
+        if st.token == token {
             self.index += 1;
-            Ok(curr)
+            Ok(st)
         } else {
-            match curr.token {
-                Token::Eof => Err(ParseError::UnexpectedEof),
-                _ => Err(ParseError::UnexpectedToken),
-            }
+            Err(ParseError::unexpected(st))
         }
     }
 
@@ -158,13 +166,13 @@ impl<'a> Parser<'a> {
 
     // ── Statements ──────────────────────────────────────────────────────────────────
     fn parse_stmt(&mut self) -> Result<Stmt, ParseError> {
-        match self.peek().token {
+        let st = self.peek();
+        match st.token {
             Token::Id(_) => self.parse_assign_stmt(),
             Token::Let => self.parse_let_stmt(),
             Token::If => self.parse_if_stmt(),
             Token::While => self.parse_while_stmt(),
-            Token::Eof => Err(ParseError::UnexpectedEof),
-            _ => Err(ParseError::UnexpectedToken),
+            _ => Err(ParseError::unexpected(st)),
         }
     }
 
@@ -246,7 +254,8 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_comp_op(&mut self) -> Result<CompOp, ParseError> {
-        match self.peek().token {
+        let st = self.peek();
+        match st.token {
             Token::Equality => {
                 self.advance();
                 Ok(CompOp::Equality)
@@ -255,7 +264,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(CompOp::Grt)
             }
-            _ => Err(ParseError::UnexpectedToken),
+            _ => Err(ParseError::unexpected(st)),
         }
     }
 
@@ -270,7 +279,8 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_arith_op(&mut self) -> Result<ArithOp, ParseError> {
-        match self.peek().token {
+        let st = self.peek();
+        match st.token {
             Token::Plus => {
                 self.advance();
                 Ok(ArithOp::Plus)
@@ -279,20 +289,20 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(ArithOp::Minus)
             }
-            _ => Err(ParseError::UnexpectedToken),
+            _ => Err(ParseError::unexpected(st)),
         }
     }
 
     fn parse_atom_expr(&mut self) -> Result<AtomExpr, ParseError> {
-        let token = self.peek().token.clone();
-        let next_token = self.peek_next().token.clone();
+        let st = self.peek();
+        let token = &st.token;
+        let next_token = &self.peek_next().token;
         match (token, next_token) {
             (Token::Id(_), Token::LParen) => self.parse_func_call(),
             (Token::Id(_), _) => Ok(AtomExpr::Id(self.parse_id()?)),
             (Token::Num(_), _) => Ok(AtomExpr::Num(self.parse_num()?)),
             (Token::LParen, _) => self.parse_group(),
-            (Token::Eof, _) => Err(ParseError::UnexpectedEof),
-            _ => Err(ParseError::UnexpectedToken),
+            _ => Err(ParseError::unexpected(st)),
         }
     }
 
@@ -320,13 +330,13 @@ impl<'a> Parser<'a> {
 
     // ── Type ──────────────────────────────────────────────────────────────────
     fn parse_type(&mut self) -> Result<Type, ParseError> {
-        match self.peek().token {
+        let st = self.peek();
+        match st.token {
             Token::Int => {
                 self.advance();
                 Ok(Type::Int)
             }
-            Token::Eof => Err(ParseError::UnexpectedEof),
-            _ => Err(ParseError::UnexpectedToken),
+            _ => Err(ParseError::unexpected(st)),
         }
     }
 
@@ -342,8 +352,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(id)
             }
-            Token::Eof => Err(ParseError::UnexpectedEof),
-            _ => Err(ParseError::UnexpectedToken),
+            _ => Err(ParseError::unexpected(st)),
         }
     }
 
@@ -358,8 +367,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(num)
             }
-            Token::Eof => Err(ParseError::UnexpectedEof),
-            _ => Err(ParseError::UnexpectedToken),
+            _ => Err(ParseError::unexpected(st)),
         }
     }
 }
@@ -496,7 +504,7 @@ mod tests {
         ];
         let mut p = Parser::new(&sts);
         let result = p.expect(Token::LParen).unwrap_err();
-        assert_eq!(result, ParseError::UnexpectedToken);
+        assert!(matches!(result, ParseError::UnexpectedToken(..)));
         assert_eq!(p.index, 0);
     }
 
@@ -508,7 +516,7 @@ mod tests {
         }];
         let mut p = Parser::new(&sts);
         let result = p.expect(Token::LParen).unwrap_err();
-        assert_eq!(result, ParseError::UnexpectedEof);
+        assert!(matches!(result, ParseError::UnexpectedEof(..)));
         assert_eq!(p.index, 0);
     }
 }
