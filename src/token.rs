@@ -37,12 +37,6 @@ pub struct SyntaxToken {
     pub span: Span,
 }
 
-impl<'a> SyntaxToken {
-    pub fn get_str(&self, stream: &'a str) -> Option<&'a str> {
-        stream.get(self.span.start.index..self.span.end.index)
-    }
-}
-
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct Span {
     pub start: Location,

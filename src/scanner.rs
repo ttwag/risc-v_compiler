@@ -165,7 +165,7 @@ impl<'a> Scanner<'a> {
 
     fn apply_keyword(&self, sts: &mut Vec<SyntaxToken>) {
         for st in sts {
-            st.token = match st.get_str(self.input) {
+            st.token = match self.read_str(&st.span) {
                 Some("int") => Token::Int,
                 Some("let") => Token::Let,
                 Some("while") => Token::While,
@@ -175,8 +175,12 @@ impl<'a> Scanner<'a> {
                 Some("return") => Token::Return,
                 Some("fn") => Token::Function,
                 _ => continue,
-            }
+            };
         }
+    }
+
+    fn read_str(&self, span: &Span) -> Option<&'a str> {
+        self.input.get(span.start.index..span.end.index)
     }
 
     /// Scans the input and returns a list of tokens as defined in grammar.ebnf.
