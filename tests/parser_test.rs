@@ -119,6 +119,40 @@ fn parse_loop() {
     assert_ast(input);
 }
 
+#[test]
+fn parse_nested_loop() {
+    let input = indoc! {"
+    fn example ( n : int , m : int ) -> int {
+        let result : int := 0 ;
+        while ( n > 0 ) {
+            while ( m > 0 ) {
+                result := result + 1 ;
+                m := m - 1 ;
+            }
+            n := n - 1 ;
+        }
+        return result ;
+    }
+    "};
+    assert_ast(input);
+}
+
+#[test]
+fn parse_nested_branch() {
+    let input = indoc! {"
+    fn example ( n : int ) -> int {
+        let result : int := 0 ;
+        while ( n > 0 ) {
+            if ( n == 1 ) {
+                result := result + 1 ;
+            }
+            n := n - 1 ;
+        }
+        return result ;
+    }
+    "};
+    assert_ast(input);
+}
 
 #[test]
 fn parse_grt() {
@@ -189,6 +223,76 @@ fn parse_func_call_nested() {
     fn self  ( a : int ) -> int { return a ; }
     fn example ( ) -> int {
         return self ( self ( 1 ) ) ;
+    }
+    "};
+    assert_ast(input);
+}
+
+#[test]
+fn parse_fib() {
+    let input = indoc! {"
+    fn fib ( n : int ) -> int {
+        let result : int := 0 ;
+        if ( n == 0 ) {
+            result := 0 ;
+        }
+        elif ( n == 1 ) {
+            result := 1 ;
+        }
+        else {
+            result := fib ( n - 1 ) + fib ( n - 2 ) ;
+        }
+        return result ;
+    }
+    "};
+    assert_ast(input);
+}
+
+#[test]
+fn parse_mult() {
+    let input = indoc! {"
+    fn multiply ( n : int , m : int ) -> int {
+        let product : int := 0 ;
+        if ( m == 0 ) { product := 0 ; }
+        elif ( m > 0 ) {
+            if ( n > 0 ) { product := multiply ( n , m - 1 ) + n ; }
+            elif ( n == 0 ) { product := 0 ; }
+            else { product := multiply ( n , m - 1 ) - n ; }
+            }
+        else {
+            if ( n > 0 ) { product := multiply ( n , m + 1 ) - n ; }
+            elif ( n == 0 ) { product := 0 ; }
+            else { product := multiply ( n , m + 1 ) + n ; }
+        }
+        return product ;
+    }
+    "};
+    assert_ast(input);
+}
+
+#[test]
+fn parse_div() {
+    let input = indoc! {"
+    fn abs ( n : int ) -> int {
+        let result : int := 0 ;
+        if ( n > 0 ) { result := n ; }
+        else { result := 0 - n ; }
+        return result ;
+    }
+    fn divide ( n : int , m : int ) -> int {
+        let quotient : int := 0 ;
+        if ( abs ( m ) > abs ( n ) ) { quotient := 0 ; }
+        else {
+            if ( n > 0 ) {
+                if ( m > 0 ) { quotient := divide ( n - m , m ) + 1 ; }
+                else { quotient := divide ( n + m , m ) - 1 ; }
+            }
+            else {
+                if ( m > 0 ) { quotient := divide ( n + m , m ) - 1 ; }
+                else { quotient := divide ( n - m , m ) + 1 ; }
+            }
+        }
+        return  quotient ;
     }
     "};
     assert_ast(input);
