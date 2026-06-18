@@ -1,4 +1,4 @@
-use crate::ast::{ArithExpr, AtomExpr, CompExpr, CompOp, Expr, Num, Program};
+use crate::ast::{ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, Num, Program};
 use crate::token::{Span, SyntaxToken, Token};
 use core::fmt;
 use std::collections::HashMap;
@@ -75,6 +75,7 @@ impl Display for Instr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Instr::Add(rd, rs1, rs2) => write!(f, "add {}, {}, {}", rd, rs1, rs2),
+            Instr::Sub(rd, rs1, rs2) => write!(f, "sub {}, {}, {}", rd, rs1, rs2),
             Instr::Li(rd, imm)             => write!(f, "li {}, {}", rd, imm),
             Instr::Mv(rd, rs1)             => write!(f, "mv {}, {}", rd, rs1),
             Instr::Slt(rd, rs1, rs2) => write!(f, "slt {}, {}, {}", rd, rs1, rs2),
@@ -124,8 +125,8 @@ impl<'a> CodeGen<'a> {
         instrs
     }
 
-    fn gen_comp_op(expr: &CompOp, dst: Reg, rs1: Reg, rs2: Reg) -> Vec<Instr> {
-        match expr {
+    fn gen_comp_op(op: &CompOp, dst: Reg, rs1: Reg, rs2: Reg) -> Vec<Instr> {
+        match op {
             CompOp::Equality => vec![Instr::Xor(rs1, rs1, rs2), Instr::Seqz(dst, rs1)],
             CompOp::Grt => vec![Instr::Slt(dst, rs2, rs1)],
         }
@@ -138,11 +139,23 @@ impl<'a> CodeGen<'a> {
                 instrs.extend(CodeGen::gen_atom_expr(lhs, Reg::T1));
                 instrs.push(Instr::Mv(dst, Reg::T1));
             }
-            _ => {
-                todo!()
+            ArithExpr(lhs, v) => {
+                instrs.extend(CodeGen::gen_atom_expr(lhs, Reg::T1));
+                for (op, rhs) in v {
+                    instrs.extend(CodeGen::gen_atom_expr(rhs, Reg::T2));
+                    instrs.extend(CodeGen::gen_arith_op(op, Reg::T1, Reg::T1, Reg::T2));
+                }
+                instrs.push(Instr::Mv(dst, Reg::T1));
             }
         }
         instrs
+    }
+
+    fn gen_arith_op(op: &ArithOp, dst: Reg, rs1: Reg, rs2: Reg) -> Vec<Instr> {
+        match op {
+            ArithOp::Plus => vec![Instr::Add(dst, rs1, rs2)],
+            ArithOp::Minus => vec![Instr::Sub(dst, rs1, rs2)],
+        }
     }
 
     fn gen_atom_expr(expr: &AtomExpr, dst: Reg) -> Vec<Instr> {
@@ -161,6 +174,7 @@ impl<'a> CodeGen<'a> {
 mod test {
     use super::*;
     use indoc::indoc;
+    use pretty_assertions::assert_eq;
 
     // ── Expr ───────────────────────────────────────────────────────────────
     #[test]
@@ -259,6 +273,123 @@ mod test {
                         name: String::from("6"),
                     }),
                     vec![],
+                ),
+            )),
+        );
+        let instrs = CodeGen::gen_code(CodeGen::gen_expr(&expr, Reg::A0));
+        assert_eq!(expected_instrs, instrs);
+    }
+
+    // Input: 5 + 7 - 10
+    #[test]
+    fn gen_arith_plus_minus_with_lhs_rhs_num() {
+        let expected_instrs = indoc! {"
+        li t1, 5
+        li t2, 7
+        add t1, t1, t2
+        li t2, 10
+        sub t1, t1, t2
+        mv t0, t1
+        mv a0, t0"};
+        let st_lhs = SyntaxToken {
+            token: Token::Num(String::from("5")),
+            span: Span::default(),
+        };
+        let st_rhs_0 = SyntaxToken {
+            token: Token::Num(String::from("7")),
+            span: Span::default(),
+        };
+        let st_rhs_1 = SyntaxToken {
+            token: Token::Num(String::from("10")),
+            span: Span::default(),
+        };
+        let expr = CompExpr(
+            ArithExpr(
+                AtomExpr::Num(Num {
+                    st: st_lhs,
+                    name: String::from("5"),
+                }),
+                vec![
+                    (
+                        ArithOp::Plus,
+                        AtomExpr::Num(Num {
+                            st: st_rhs_0,
+                            name: String::from("7"),
+                        }),
+                    ),
+                    (
+                        ArithOp::Minus,
+                        AtomExpr::Num(Num {
+                            st: st_rhs_1,
+                            name: String::from("10"),
+                        }),
+                    ),
+                ],
+            ),
+            None,
+        );
+        let instrs = CodeGen::gen_code(CodeGen::gen_expr(&expr, Reg::A0));
+        assert_eq!(expected_instrs, instrs);
+    }
+
+    // Input: 5 + 8 == 6 + 7
+    #[test]
+    fn gen_comp_equality_with_lhs_rhs_arith() {
+        let expected_instrs = indoc! {"
+        li t1, 5
+        li t2, 8
+        add t1, t1, t2
+        mv t0, t1
+        li t1, 6
+        li t2, 7
+        add t1, t1, t2
+        mv t1, t1
+        xor t0, t0, t1
+        seqz a0, t0"};
+        let st_lhs_0 = SyntaxToken {
+            token: Token::Num(String::from("5")),
+            span: Span::default(),
+        };
+        let st_lhs_1 = SyntaxToken {
+            token: Token::Num(String::from("8")),
+            span: Span::default(),
+        };
+        let st_rhs_0 = SyntaxToken {
+            token: Token::Num(String::from("6")),
+            span: Span::default(),
+        };
+        let st_rhs_1 = SyntaxToken {
+            token: Token::Num(String::from("7")),
+            span: Span::default(),
+        };
+        let expr = CompExpr(
+            ArithExpr(
+                AtomExpr::Num(Num {
+                    st: st_lhs_0,
+                    name: String::from("5"),
+                }),
+                vec![(
+                    ArithOp::Plus,
+                    AtomExpr::Num(Num {
+                        st: st_lhs_1,
+                        name: String::from("8"),
+                    }),
+                )],
+            ),
+            Some((
+                CompOp::Equality,
+                ArithExpr(
+                    AtomExpr::Num(Num {
+                        st: st_rhs_0,
+                        name: String::from("6"),
+                    }),
+                    vec![(
+                        ArithOp::Plus,
+                        AtomExpr::Num(Num {
+                            st: st_rhs_1,
+                            name: String::from("7"),
+                        }),
+                    )],
                 ),
             )),
         );
