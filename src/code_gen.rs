@@ -1,9 +1,10 @@
-use crate::ast::{ArithExpr, AtomExpr, CompExpr, Expr, Num, Program};
+use crate::ast::{ArithExpr, AtomExpr, CompExpr, CompOp, Expr, Num, Program};
 use crate::token::{Span, SyntaxToken, Token};
 use core::fmt;
 use std::collections::HashMap;
 use std::fmt::Display;
 
+#[derive(Copy, Clone)]
 enum Reg {
     // stack pointer
     Sp,
@@ -49,6 +50,9 @@ enum Instr {
     Add(Reg, Reg, Reg),  // add rd, rs1, rs2
     Sub(Reg, Reg, Reg),  // sub rd, rs1, rs2
     Addi(Reg, Reg, i32), // addi rd, rs1, imm
+    Slt(Reg, Reg, Reg),  // rd, rs1, rs2
+    Xor(Reg, Reg, Reg),  // rd, rs1, rs2
+    Seqz(Reg, Reg),      // rd, rs1
 
     // load/store
     Lw(Reg, i32, Reg), //lw rd, offset(rs1)
@@ -66,12 +70,16 @@ enum Instr {
     Jalr(Reg, Reg, i32), //jalr rd, rs1, imm
 }
 
+#[rustfmt::skip]
 impl Display for Instr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Instr::Add(rd, rs1, rs2) => write!(f, "add {}, {}, {}", rd, rs1, rs2),
-            Instr::Li(rd, imm) => write!(f, "li {}, {}", rd, imm),
-            Instr::Mv(rd, rs1) => write!(f, "mv {}, {}", rd, rs1),
+            Instr::Li(rd, imm)             => write!(f, "li {}, {}", rd, imm),
+            Instr::Mv(rd, rs1)             => write!(f, "mv {}, {}", rd, rs1),
+            Instr::Slt(rd, rs1, rs2) => write!(f, "slt {}, {}, {}", rd, rs1, rs2),
+            Instr::Xor(rd, rs1, rs2) => write!(f, "xor {}, {}, {}", rd, rs1, rs2),
+            Instr::Seqz(rd, rs1)           => write!(f, "seqz {}, {}", rd, rs1),
             _ => {
                 todo!()
             }
@@ -107,11 +115,20 @@ impl<'a> CodeGen<'a> {
                 instrs.extend(CodeGen::gen_arith_expr(lhs, Reg::T0));
                 instrs.push(Instr::Mv(dst, Reg::T0));
             }
-            _ => {
-                todo!()
+            CompExpr(lhs, Some((op, rhs))) => {
+                instrs.extend(CodeGen::gen_arith_expr(lhs, Reg::T0));
+                instrs.extend(CodeGen::gen_arith_expr(rhs, Reg::T1));
+                instrs.extend(CodeGen::gen_comp_op(op, dst, Reg::T0, Reg::T1));
             }
         }
         instrs
+    }
+
+    fn gen_comp_op(expr: &CompOp, dst: Reg, rs1: Reg, rs2: Reg) -> Vec<Instr> {
+        match expr {
+            CompOp::Equality => vec![Instr::Xor(rs1, rs1, rs2), Instr::Seqz(dst, rs1)],
+            CompOp::Grt => vec![Instr::Slt(dst, rs2, rs1)],
+        }
     }
 
     fn gen_arith_expr(expr: &ArithExpr, dst: Reg) -> Vec<Instr> {
@@ -145,6 +162,7 @@ mod test {
     use super::*;
     use indoc::indoc;
 
+    // ── Expr ───────────────────────────────────────────────────────────────
     #[test]
     fn gen_num_atom_expr() {
         let expected_instrs = indoc! {"
@@ -164,6 +182,85 @@ mod test {
                 vec![],
             ),
             None,
+        );
+        let instrs = CodeGen::gen_code(CodeGen::gen_expr(&expr, Reg::A0));
+        assert_eq!(expected_instrs, instrs);
+    }
+
+    #[test]
+    fn gen_comp_grt_with_num() {
+        let expected_instrs = indoc! {"
+        li t1, 5
+        mv t0, t1
+        li t1, 6
+        mv t1, t1
+        slt a0, t1, t0"};
+        let st_lhs = SyntaxToken {
+            token: Token::Num(String::from("5")),
+            span: Span::default(),
+        };
+        let st_rhs = SyntaxToken {
+            token: Token::Num(String::from("6")),
+            span: Span::default(),
+        };
+        let expr = CompExpr(
+            ArithExpr(
+                AtomExpr::Num(Num {
+                    st: st_lhs,
+                    name: String::from("5"),
+                }),
+                vec![],
+            ),
+            Some((
+                CompOp::Grt,
+                ArithExpr(
+                    AtomExpr::Num(Num {
+                        st: st_rhs,
+                        name: String::from("6"),
+                    }),
+                    vec![],
+                ),
+            )),
+        );
+        let instrs = CodeGen::gen_code(CodeGen::gen_expr(&expr, Reg::A0));
+        assert_eq!(expected_instrs, instrs);
+    }
+
+    #[test]
+    fn gen_comp_equality_with_num() {
+        let expected_instrs = indoc! {"
+        li t1, 5
+        mv t0, t1
+        li t1, 6
+        mv t1, t1
+        xor t0, t0, t1
+        seqz a0, t0"};
+        let st_lhs = SyntaxToken {
+            token: Token::Num(String::from("5")),
+            span: Span::default(),
+        };
+        let st_rhs = SyntaxToken {
+            token: Token::Num(String::from("6")),
+            span: Span::default(),
+        };
+        let expr = CompExpr(
+            ArithExpr(
+                AtomExpr::Num(Num {
+                    st: st_lhs,
+                    name: String::from("5"),
+                }),
+                vec![],
+            ),
+            Some((
+                CompOp::Equality,
+                ArithExpr(
+                    AtomExpr::Num(Num {
+                        st: st_rhs,
+                        name: String::from("6"),
+                    }),
+                    vec![],
+                ),
+            )),
         );
         let instrs = CodeGen::gen_code(CodeGen::gen_expr(&expr, Reg::A0));
         assert_eq!(expected_instrs, instrs);
