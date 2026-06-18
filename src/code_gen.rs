@@ -164,7 +164,7 @@ mod test {
 
     // ── Expr ───────────────────────────────────────────────────────────────
     #[test]
-    fn gen_num_atom_expr() {
+    fn gen_comp_with_lhs_num() {
         let expected_instrs = indoc! {"
         li t1, 5
         mv t0, t1
@@ -188,7 +188,7 @@ mod test {
     }
 
     #[test]
-    fn gen_comp_grt_with_num() {
+    fn gen_comp_grt_with_lhs_rhs_num() {
         let expected_instrs = indoc! {"
         li t1, 5
         mv t0, t1
@@ -227,7 +227,7 @@ mod test {
     }
 
     #[test]
-    fn gen_comp_equality_with_num() {
+    fn gen_comp_equality_with_lhs_rhs_num() {
         let expected_instrs = indoc! {"
         li t1, 5
         mv t0, t1
