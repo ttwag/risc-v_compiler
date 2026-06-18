@@ -4,7 +4,7 @@ use core::fmt;
 use std::collections::HashMap;
 use std::fmt::Display;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 enum Reg {
     // stack pointer
     Sp,
@@ -70,6 +70,16 @@ enum Instr {
     Jalr(Reg, Reg, i32), //jalr rd, rs1, imm
 }
 
+impl Instr {
+    fn gen_mv(dst: Reg, rs1: Reg) -> Vec<Instr> {
+        if dst == rs1 {
+            vec![]
+        } else {
+            vec![Instr::Mv(dst, rs1)]
+        }
+    }
+}
+
 #[rustfmt::skip]
 impl Display for Instr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -114,7 +124,7 @@ impl<'a> CodeGen<'a> {
         match expr {
             CompExpr(lhs, None) => {
                 instrs.extend(CodeGen::gen_arith_expr(lhs, Reg::T0));
-                instrs.push(Instr::Mv(dst, Reg::T0));
+                instrs.extend(Instr::gen_mv(dst, Reg::T0));
             }
             CompExpr(lhs, Some((op, rhs))) => {
                 instrs.extend(CodeGen::gen_arith_expr(lhs, Reg::T0));
@@ -137,7 +147,6 @@ impl<'a> CodeGen<'a> {
         match expr {
             ArithExpr(lhs, _v) if _v.is_empty() => {
                 instrs.extend(CodeGen::gen_atom_expr(lhs, Reg::T1));
-                instrs.push(Instr::Mv(dst, Reg::T1));
             }
             ArithExpr(lhs, v) => {
                 instrs.extend(CodeGen::gen_atom_expr(lhs, Reg::T1));
@@ -145,9 +154,9 @@ impl<'a> CodeGen<'a> {
                     instrs.extend(CodeGen::gen_atom_expr(rhs, Reg::T2));
                     instrs.extend(CodeGen::gen_arith_op(op, Reg::T1, Reg::T1, Reg::T2));
                 }
-                instrs.push(Instr::Mv(dst, Reg::T1));
             }
         }
+        instrs.extend(Instr::gen_mv(dst, Reg::T1));
         instrs
     }
 
@@ -207,7 +216,6 @@ mod test {
         li t1, 5
         mv t0, t1
         li t1, 6
-        mv t1, t1
         slt a0, t1, t0"};
         let st_lhs = SyntaxToken {
             token: Token::Num(String::from("5")),
@@ -246,7 +254,6 @@ mod test {
         li t1, 5
         mv t0, t1
         li t1, 6
-        mv t1, t1
         xor t0, t0, t1
         seqz a0, t0"};
         let st_lhs = SyntaxToken {
@@ -343,7 +350,6 @@ mod test {
         li t1, 6
         li t2, 7
         add t1, t1, t2
-        mv t1, t1
         xor t0, t0, t1
         seqz a0, t0"};
         let st_lhs_0 = SyntaxToken {
