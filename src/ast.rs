@@ -3,7 +3,7 @@ use core::fmt;
 use std::fmt::Display;
 
 // ── AST Definition ───────────────────────────────────────────────────────────────
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct Program(pub Vec<FuncDef>);
 
 // ── Function Definition ───────────────────────────────────────────────────────────────

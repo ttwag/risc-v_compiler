@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub enum Token {
     // Punctuation
     LParen,
@@ -28,10 +28,11 @@ pub enum Token {
     Num(String),
     Id(String),
     // End
+    #[default]
     Eof,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct SyntaxToken {
     pub token: Token,
     pub span: Span,

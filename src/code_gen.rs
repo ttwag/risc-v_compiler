@@ -1,7 +1,5 @@
-use crate::ast::{ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, Num, Program};
-use crate::token::{Span, SyntaxToken, Token};
+use crate::ast::{ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, Program};
 use core::fmt;
-use std::collections::HashMap;
 use std::fmt::Display;
 
 #[derive(Copy, Clone, PartialEq)]
@@ -118,17 +116,17 @@ impl<'a> CodeGen<'a> {
             .join("\n")
     }
 
-    fn gen_expr(expr: &Expr, dst: Reg) -> Vec<Instr> {
+    fn gen_expr(&mut self, expr: &Expr, dst: Reg) -> Vec<Instr> {
         let mut instrs = Vec::new();
 
         match expr {
             CompExpr(lhs, None) => {
-                instrs.extend(CodeGen::gen_arith_expr(lhs, Reg::T0));
+                instrs.extend(self.gen_arith_expr(lhs, Reg::T0));
                 instrs.extend(Instr::gen_mv(dst, Reg::T0));
             }
             CompExpr(lhs, Some((op, rhs))) => {
-                instrs.extend(CodeGen::gen_arith_expr(lhs, Reg::T0));
-                instrs.extend(CodeGen::gen_arith_expr(rhs, Reg::T1));
+                instrs.extend(self.gen_arith_expr(lhs, Reg::T0));
+                instrs.extend(self.gen_arith_expr(rhs, Reg::T1));
                 instrs.extend(CodeGen::gen_comp_op(op, dst, Reg::T0, Reg::T1));
             }
         }
@@ -142,16 +140,16 @@ impl<'a> CodeGen<'a> {
         }
     }
 
-    fn gen_arith_expr(expr: &ArithExpr, dst: Reg) -> Vec<Instr> {
+    fn gen_arith_expr(&mut self, expr: &ArithExpr, dst: Reg) -> Vec<Instr> {
         let mut instrs = Vec::new();
         match expr {
             ArithExpr(lhs, _v) if _v.is_empty() => {
-                instrs.extend(CodeGen::gen_atom_expr(lhs, Reg::T1));
+                instrs.extend(self.gen_atom_expr(lhs, Reg::T1));
             }
             ArithExpr(lhs, v) => {
-                instrs.extend(CodeGen::gen_atom_expr(lhs, Reg::T1));
+                instrs.extend(self.gen_atom_expr(lhs, Reg::T1));
                 for (op, rhs) in v {
-                    instrs.extend(CodeGen::gen_atom_expr(rhs, Reg::T2));
+                    instrs.extend(self.gen_atom_expr(rhs, Reg::T2));
                     instrs.extend(CodeGen::gen_arith_op(op, Reg::T1, Reg::T1, Reg::T2));
                 }
             }
@@ -167,7 +165,7 @@ impl<'a> CodeGen<'a> {
         }
     }
 
-    fn gen_atom_expr(expr: &AtomExpr, dst: Reg) -> Vec<Instr> {
+    fn gen_atom_expr(&mut self, expr: &AtomExpr, dst: Reg) -> Vec<Instr> {
         match expr {
             AtomExpr::Num(num) => {
                 vec![Instr::Li(dst, num.name.parse().unwrap())]
@@ -182,8 +180,17 @@ impl<'a> CodeGen<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::ast::Num;
+    use crate::token::SyntaxToken;
     use indoc::indoc;
     use pretty_assertions::assert_eq;
+
+    fn assert_cg_expr(expected_instrs: &str, expr: &CompExpr) {
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let instrs = CodeGen::gen_code(cg.gen_expr(&expr, Reg::A0));
+        assert_eq!(expected_instrs, instrs);
+    }
 
     // ── Expr ───────────────────────────────────────────────────────────────
     #[test]
@@ -192,24 +199,20 @@ mod test {
         li t1, 5
         mv t0, t1
         mv a0, t0"};
-        let st = SyntaxToken {
-            token: Token::Num(String::from("5")),
-            span: Span::default(),
-        };
         let expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
-                    st: st,
+                    st: SyntaxToken::default(),
                     name: String::from("5"),
                 }),
                 vec![],
             ),
             None,
         );
-        let instrs = CodeGen::gen_code(CodeGen::gen_expr(&expr, Reg::A0));
-        assert_eq!(expected_instrs, instrs);
+        assert_cg_expr(expected_instrs, &expr);
     }
 
+    // Input: 5 > 6
     #[test]
     fn gen_comp_grt_with_lhs_rhs_num() {
         let expected_instrs = indoc! {"
@@ -217,18 +220,10 @@ mod test {
         mv t0, t1
         li t1, 6
         slt a0, t1, t0"};
-        let st_lhs = SyntaxToken {
-            token: Token::Num(String::from("5")),
-            span: Span::default(),
-        };
-        let st_rhs = SyntaxToken {
-            token: Token::Num(String::from("6")),
-            span: Span::default(),
-        };
         let expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
-                    st: st_lhs,
+                    st: SyntaxToken::default(),
                     name: String::from("5"),
                 }),
                 vec![],
@@ -237,17 +232,17 @@ mod test {
                 CompOp::Grt,
                 ArithExpr(
                     AtomExpr::Num(Num {
-                        st: st_rhs,
+                        st: SyntaxToken::default(),
                         name: String::from("6"),
                     }),
                     vec![],
                 ),
             )),
         );
-        let instrs = CodeGen::gen_code(CodeGen::gen_expr(&expr, Reg::A0));
-        assert_eq!(expected_instrs, instrs);
+        assert_cg_expr(expected_instrs, &expr);
     }
 
+    // Input: 5 == 6
     #[test]
     fn gen_comp_equality_with_lhs_rhs_num() {
         let expected_instrs = indoc! {"
@@ -256,18 +251,10 @@ mod test {
         li t1, 6
         xor t0, t0, t1
         seqz a0, t0"};
-        let st_lhs = SyntaxToken {
-            token: Token::Num(String::from("5")),
-            span: Span::default(),
-        };
-        let st_rhs = SyntaxToken {
-            token: Token::Num(String::from("6")),
-            span: Span::default(),
-        };
         let expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
-                    st: st_lhs,
+                    st: SyntaxToken::default(),
                     name: String::from("5"),
                 }),
                 vec![],
@@ -276,15 +263,14 @@ mod test {
                 CompOp::Equality,
                 ArithExpr(
                     AtomExpr::Num(Num {
-                        st: st_rhs,
+                        st: SyntaxToken::default(),
                         name: String::from("6"),
                     }),
                     vec![],
                 ),
             )),
         );
-        let instrs = CodeGen::gen_code(CodeGen::gen_expr(&expr, Reg::A0));
-        assert_eq!(expected_instrs, instrs);
+        assert_cg_expr(expected_instrs, &expr);
     }
 
     // Input: 5 + 7 - 10
@@ -298,36 +284,24 @@ mod test {
         sub t1, t1, t2
         mv t0, t1
         mv a0, t0"};
-        let st_lhs = SyntaxToken {
-            token: Token::Num(String::from("5")),
-            span: Span::default(),
-        };
-        let st_rhs_0 = SyntaxToken {
-            token: Token::Num(String::from("7")),
-            span: Span::default(),
-        };
-        let st_rhs_1 = SyntaxToken {
-            token: Token::Num(String::from("10")),
-            span: Span::default(),
-        };
         let expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
-                    st: st_lhs,
+                    st: SyntaxToken::default(),
                     name: String::from("5"),
                 }),
                 vec![
                     (
                         ArithOp::Plus,
                         AtomExpr::Num(Num {
-                            st: st_rhs_0,
+                            st: SyntaxToken::default(),
                             name: String::from("7"),
                         }),
                     ),
                     (
                         ArithOp::Minus,
                         AtomExpr::Num(Num {
-                            st: st_rhs_1,
+                            st: SyntaxToken::default(),
                             name: String::from("10"),
                         }),
                     ),
@@ -335,8 +309,7 @@ mod test {
             ),
             None,
         );
-        let instrs = CodeGen::gen_code(CodeGen::gen_expr(&expr, Reg::A0));
-        assert_eq!(expected_instrs, instrs);
+        assert_cg_expr(expected_instrs, &expr);
     }
 
     // Input: 5 + 8 == 6 + 7
@@ -352,32 +325,16 @@ mod test {
         add t1, t1, t2
         xor t0, t0, t1
         seqz a0, t0"};
-        let st_lhs_0 = SyntaxToken {
-            token: Token::Num(String::from("5")),
-            span: Span::default(),
-        };
-        let st_lhs_1 = SyntaxToken {
-            token: Token::Num(String::from("8")),
-            span: Span::default(),
-        };
-        let st_rhs_0 = SyntaxToken {
-            token: Token::Num(String::from("6")),
-            span: Span::default(),
-        };
-        let st_rhs_1 = SyntaxToken {
-            token: Token::Num(String::from("7")),
-            span: Span::default(),
-        };
         let expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
-                    st: st_lhs_0,
+                    st: SyntaxToken::default(),
                     name: String::from("5"),
                 }),
                 vec![(
                     ArithOp::Plus,
                     AtomExpr::Num(Num {
-                        st: st_lhs_1,
+                        st: SyntaxToken::default(),
                         name: String::from("8"),
                     }),
                 )],
@@ -386,20 +343,19 @@ mod test {
                 CompOp::Equality,
                 ArithExpr(
                     AtomExpr::Num(Num {
-                        st: st_rhs_0,
+                        st: SyntaxToken::default(),
                         name: String::from("6"),
                     }),
                     vec![(
                         ArithOp::Plus,
                         AtomExpr::Num(Num {
-                            st: st_rhs_1,
+                            st: SyntaxToken::default(),
                             name: String::from("7"),
                         }),
                     )],
                 ),
             )),
         );
-        let instrs = CodeGen::gen_code(CodeGen::gen_expr(&expr, Reg::A0));
-        assert_eq!(expected_instrs, instrs);
+        assert_cg_expr(expected_instrs, &expr);
     }
 }
