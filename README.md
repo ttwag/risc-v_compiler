@@ -7,9 +7,9 @@ How many temporary register is enough?
 ````text
 comp_expr                dest=t0  free={t0,t1,t2}
 ├── arith_expr (left)    dest=t0  free={t0,t1,t2}
-│   ├── atom_expr        dest=t0  free={t0,t1,t2}
+│   ├── atom_expr        dest=t1  free={t0,t1,t2}
 │   ├── (+/-)
-│   └── atom_expr        dest=t1  free={t1,t2}
+│   └── atom_expr        dest=t2  free={t0,t2}
 ├── (==/>)
 └── arith_expr (right)   dest=t1  free={t1,t2}
     ├── atom_expr        dest=t1  free={t1,t2}
