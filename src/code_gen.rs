@@ -1,8 +1,15 @@
-use crate::ast::{ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, Program};
+use crate::ast::{ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, Id, Program, Stmt, Type};
+use crate::token::{Location, SyntaxToken};
 use core::fmt;
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
 const WORD_SIZE: usize = 4;
+
+#[derive(Debug)]
+enum CGError {
+    UndefinedVariable(SyntaxToken),
+    VarRedefinition(SyntaxToken),
+}
 
 #[derive(Copy, Clone, PartialEq)]
 enum Reg {
@@ -39,6 +46,7 @@ impl Display for Reg {
             Reg::T1 => write!(f, "t1"),
             Reg::T2 => write!(f, "t2"),
             Reg::Sp => write!(f, "sp"),
+            Reg::S0 => write!(f, "s0"),
             _ => {
                 todo!()
             }
@@ -104,11 +112,18 @@ impl Display for Instr {
 struct CodeGen<'a> {
     ast: &'a Program,
     stack: Vec<Vec<Reg>>,
+    locals: HashMap<String, i32>,
+    next_local_offset: i32,
 }
 
 impl<'a> CodeGen<'a> {
     fn new(ast: &'a Program) -> Self {
-        Self { ast, stack: vec![] }
+        Self {
+            ast,
+            stack: vec![],
+            locals: HashMap::new(),
+            next_local_offset: 0,
+        }
     }
 
     fn gen_program(&self) -> Vec<Instr> {
@@ -121,6 +136,26 @@ impl<'a> CodeGen<'a> {
             .map(|i| i.to_string())
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    fn gen_stmt(&mut self, stmt: &Stmt) -> Result<Vec<Instr>, CGError> {
+        match stmt {
+            Stmt::Let(id, _var_type, expr) => {
+                let var = id.name.clone();
+                if self.locals.contains_key(&var) {
+                    Err(CGError::VarRedefinition(id.st.clone()))
+                } else {
+                    let mut instrs = Vec::new();
+                    let dst = Reg::T0;
+                    instrs.extend(self.gen_expr(expr, dst));
+                    instrs.push(self.declare_local(var, dst));
+                    Ok(instrs)
+                }
+            }
+            _ => {
+                todo!()
+            }
+        }
     }
 
     fn gen_expr(&mut self, expr: &Expr, dst: Reg) -> Vec<Instr> {
@@ -222,6 +257,13 @@ impl<'a> CodeGen<'a> {
 
         instrs.push(Instr::Addi(Reg::Sp, Reg::Sp, (size * WORD_SIZE) as i32));
         instrs
+    }
+
+    fn declare_local(&mut self, var: String, dst: Reg) -> Instr {
+        let offset = self.next_local_offset;
+        self.locals.insert(var, offset);
+        self.next_local_offset -= WORD_SIZE as i32;
+        Instr::Sw(dst, offset, Reg::S0)
     }
 }
 
@@ -447,5 +489,36 @@ mod test {
             None,
         );
         assert_cg_expr(expected_instrs, &expr);
+    }
+
+    // Input: let a: int := 5 ;
+    #[test]
+    fn gen_let_stmt() {
+        let expected_instrs = indoc! {"
+            li t1, 5
+            mv t0, t1
+            sw t0, 0(s0)"};
+
+        let stmt: Stmt = Stmt::Let(
+            Id {
+                st: SyntaxToken::default(),
+                name: String::from("a"),
+            },
+            Type::Int,
+            CompExpr(
+                ArithExpr(
+                    AtomExpr::Num(Num {
+                        st: SyntaxToken::default(),
+                        name: String::from("5"),
+                    }),
+                    vec![],
+                ),
+                None,
+            ),
+        );
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let instrs = CodeGen::gen_code(cg.gen_stmt(&stmt).unwrap());
+        assert_eq!(expected_instrs, instrs);
     }
 }
