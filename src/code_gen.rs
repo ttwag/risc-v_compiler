@@ -11,7 +11,7 @@ enum CGError {
     VarRedefinition(SyntaxToken),
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum Reg {
     // stack pointer
     Sp,
@@ -54,6 +54,7 @@ impl Display for Reg {
     }
 }
 
+#[derive(Debug)]
 enum Instr {
     // arithmetic
     Add(Reg, Reg, Reg),  // add rd, rs1, rs2
@@ -147,7 +148,7 @@ impl<'a> CodeGen<'a> {
                 } else {
                     let mut instrs = Vec::new();
                     let dst = Reg::T0;
-                    instrs.extend(self.gen_expr(expr, dst));
+                    instrs.extend(self.gen_expr(expr, dst)?);
                     instrs.push(self.declare_local(var, dst));
                     Ok(instrs)
                 }
@@ -158,21 +159,21 @@ impl<'a> CodeGen<'a> {
         }
     }
 
-    fn gen_expr(&mut self, expr: &Expr, dst: Reg) -> Vec<Instr> {
+    fn gen_expr(&mut self, expr: &Expr, dst: Reg) -> Result<Vec<Instr>, CGError> {
         let mut instrs = Vec::new();
 
         match expr {
             CompExpr(lhs, None) => {
-                instrs.extend(self.gen_arith_expr(lhs, Reg::T0));
+                instrs.extend(self.gen_arith_expr(lhs, Reg::T0)?);
                 instrs.extend(Instr::gen_mv(dst, Reg::T0));
             }
             CompExpr(lhs, Some((op, rhs))) => {
-                instrs.extend(self.gen_arith_expr(lhs, Reg::T0));
-                instrs.extend(self.gen_arith_expr(rhs, Reg::T1));
+                instrs.extend(self.gen_arith_expr(lhs, Reg::T0)?);
+                instrs.extend(self.gen_arith_expr(rhs, Reg::T1)?);
                 instrs.extend(CodeGen::gen_comp_op(op, dst, Reg::T0, Reg::T1));
             }
         }
-        instrs
+        Ok(instrs)
     }
 
     fn gen_comp_op(op: &CompOp, dst: Reg, rs1: Reg, rs2: Reg) -> Vec<Instr> {
@@ -182,22 +183,22 @@ impl<'a> CodeGen<'a> {
         }
     }
 
-    fn gen_arith_expr(&mut self, expr: &ArithExpr, dst: Reg) -> Vec<Instr> {
+    fn gen_arith_expr(&mut self, expr: &ArithExpr, dst: Reg) -> Result<Vec<Instr>, CGError> {
         let mut instrs = Vec::new();
         match expr {
             ArithExpr(lhs, _v) if _v.is_empty() => {
-                instrs.extend(self.gen_atom_expr(lhs, Reg::T1));
+                instrs.extend(self.gen_atom_expr(lhs, Reg::T1)?);
             }
             ArithExpr(lhs, v) => {
-                instrs.extend(self.gen_atom_expr(lhs, Reg::T1));
+                instrs.extend(self.gen_atom_expr(lhs, Reg::T1)?);
                 for (op, rhs) in v {
-                    instrs.extend(self.gen_atom_expr(rhs, Reg::T2));
+                    instrs.extend(self.gen_atom_expr(rhs, Reg::T2)?);
                     instrs.extend(CodeGen::gen_arith_op(op, Reg::T1, Reg::T1, Reg::T2));
                 }
             }
         }
         instrs.extend(Instr::gen_mv(dst, Reg::T1));
-        instrs
+        Ok(instrs)
     }
 
     fn gen_arith_op(op: &ArithOp, dst: Reg, rs1: Reg, rs2: Reg) -> Vec<Instr> {
@@ -207,11 +208,10 @@ impl<'a> CodeGen<'a> {
         }
     }
 
-    fn gen_atom_expr(&mut self, expr: &AtomExpr, dst: Reg) -> Vec<Instr> {
+    fn gen_atom_expr(&mut self, expr: &AtomExpr, dst: Reg) -> Result<Vec<Instr>, CGError> {
         match expr {
-            AtomExpr::Num(num) => {
-                vec![Instr::Li(dst, num.name.parse().unwrap())]
-            }
+            AtomExpr::Num(num) => Ok(vec![Instr::Li(dst, num.name.parse().unwrap())]),
+            AtomExpr::Id(id) => Ok(vec![self.load_local(id, dst)?]),
             AtomExpr::Group(expr) => {
                 let mut instrs = Vec::new();
                 let regs = [Reg::T0, Reg::T1, Reg::T2]
@@ -219,9 +219,9 @@ impl<'a> CodeGen<'a> {
                     .filter(|&r| r != dst)
                     .collect::<Vec<_>>();
                 instrs.extend(self.push(regs));
-                instrs.extend(self.gen_expr(expr, dst));
+                instrs.extend(self.gen_expr(expr, dst)?);
                 instrs.extend(self.pop());
-                instrs
+                Ok(instrs)
             }
             _ => {
                 todo!()
@@ -265,6 +265,15 @@ impl<'a> CodeGen<'a> {
         self.next_local_offset -= WORD_SIZE as i32;
         Instr::Sw(dst, offset, Reg::S0)
     }
+
+    fn load_local(&self, id: &Id, dst: Reg) -> Result<Instr, CGError> {
+        let var = &id.name;
+        if let Some(&offset) = self.locals.get(var) {
+            Ok(Instr::Lw(dst, offset, Reg::S0))
+        } else {
+            Err(CGError::UndefinedVariable(id.st.clone()))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -278,7 +287,7 @@ mod test {
     fn assert_cg_expr(expected_instrs: &str, expr: &CompExpr) {
         let program = Program::default();
         let mut cg = CodeGen::new(&program);
-        let instrs = CodeGen::gen_code(cg.gen_expr(&expr, Reg::A0));
+        let instrs = CodeGen::gen_code(cg.gen_expr(&expr, Reg::A0).unwrap());
         assert_eq!(expected_instrs, instrs);
     }
 
@@ -520,5 +529,24 @@ mod test {
         let mut cg = CodeGen::new(&program);
         let instrs = CodeGen::gen_code(cg.gen_stmt(&stmt).unwrap());
         assert_eq!(expected_instrs, instrs);
+    }
+
+    // Input: b ;
+    #[test]
+    fn gen_error_undefined_var() {
+        let expr = CompExpr(
+            ArithExpr(
+                AtomExpr::Id(Id {
+                    st: SyntaxToken::default(),
+                    name: String::from("b"),
+                }),
+                vec![],
+            ),
+            None,
+        );
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let err = cg.gen_expr(&expr, Reg::A0).unwrap_err();
+        assert!(matches!(err, CGError::UndefinedVariable(..)));
     }
 }
