@@ -2,6 +2,8 @@ use crate::ast::{ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, Program};
 use core::fmt;
 use std::fmt::Display;
 
+const WORD_SIZE: usize = 4;
+
 #[derive(Copy, Clone, PartialEq)]
 enum Reg {
     // stack pointer
@@ -36,6 +38,7 @@ impl Display for Reg {
             Reg::T0 => write!(f, "t0"),
             Reg::T1 => write!(f, "t1"),
             Reg::T2 => write!(f, "t2"),
+            Reg::Sp => write!(f, "sp"),
             _ => {
                 todo!()
             }
@@ -83,12 +86,15 @@ impl Display for Instr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Instr::Add(rd, rs1, rs2) => write!(f, "add {}, {}, {}", rd, rs1, rs2),
+            Instr::Addi(rd, rs1, imm) => write!(f, "addi {}, {}, {}", rd, rs1, imm),
             Instr::Sub(rd, rs1, rs2) => write!(f, "sub {}, {}, {}", rd, rs1, rs2),
             Instr::Li(rd, imm)             => write!(f, "li {}, {}", rd, imm),
             Instr::Mv(rd, rs1)             => write!(f, "mv {}, {}", rd, rs1),
             Instr::Slt(rd, rs1, rs2) => write!(f, "slt {}, {}, {}", rd, rs1, rs2),
             Instr::Xor(rd, rs1, rs2) => write!(f, "xor {}, {}, {}", rd, rs1, rs2),
             Instr::Seqz(rd, rs1)           => write!(f, "seqz {}, {}", rd, rs1),
+            Instr::Sw(rs2, offset, rs1) => write!(f, "sw {}, {}({})", rs2, offset, rs1),
+            Instr::Lw(rd, offset, rs1) => write!(f, "lw {}, {}({})", rd, offset, rs1),
             _ => {
                 todo!()
             }
@@ -97,11 +103,12 @@ impl Display for Instr {
 }
 struct CodeGen<'a> {
     ast: &'a Program,
+    stack: Vec<Vec<Reg>>,
 }
 
 impl<'a> CodeGen<'a> {
     fn new(ast: &'a Program) -> Self {
-        Self { ast }
+        Self { ast, stack: vec![] }
     }
 
     fn gen_program(&self) -> Vec<Instr> {
@@ -170,10 +177,51 @@ impl<'a> CodeGen<'a> {
             AtomExpr::Num(num) => {
                 vec![Instr::Li(dst, num.name.parse().unwrap())]
             }
+            AtomExpr::Group(expr) => {
+                let mut instrs = Vec::new();
+                let regs = [Reg::T0, Reg::T1, Reg::T2]
+                    .into_iter()
+                    .filter(|&r| r != dst)
+                    .collect::<Vec<_>>();
+                instrs.extend(self.push(regs));
+                instrs.extend(self.gen_expr(expr, dst));
+                instrs.extend(self.pop());
+                instrs
+            }
             _ => {
                 todo!()
             }
         }
+    }
+
+    fn push(&mut self, regs: Vec<Reg>) -> Vec<Instr> {
+        let mut instrs = Vec::new();
+        let size = regs.len();
+
+        let mut offset = 0;
+        instrs.push(Instr::Addi(Reg::Sp, Reg::Sp, -((size * WORD_SIZE) as i32)));
+        for reg in &regs {
+            instrs.push(Instr::Sw(reg.clone(), offset, Reg::Sp));
+            offset += WORD_SIZE as i32;
+        }
+
+        self.stack.push(regs);
+        instrs
+    }
+
+    fn pop(&mut self) -> Vec<Instr> {
+        let regs = self.stack.pop().expect("pop with empty stack");
+        let size = regs.len();
+        let mut instrs = Vec::new();
+
+        let mut offset = 0;
+        for reg in regs {
+            instrs.push(Instr::Lw(reg, offset, Reg::Sp));
+            offset += WORD_SIZE as i32;
+        }
+
+        instrs.push(Instr::Addi(Reg::Sp, Reg::Sp, (size * WORD_SIZE) as i32));
+        instrs
     }
 }
 
@@ -355,6 +403,48 @@ mod test {
                     )],
                 ),
             )),
+        );
+        assert_cg_expr(expected_instrs, &expr);
+    }
+
+    // Input: 1 + (5)
+    #[test]
+    fn gen_comp_with_lhs_group() {
+        let expected_instrs = indoc! {"
+        li t1, 1
+        addi sp, sp, -8
+        sw t0, 0(sp)
+        sw t1, 4(sp)
+        li t1, 5
+        mv t0, t1
+        mv t2, t0
+        lw t0, 0(sp)
+        lw t1, 4(sp)
+        addi sp, sp, 8
+        add t1, t1, t2
+        mv t0, t1
+        mv a0, t0"};
+        let expr: Expr = CompExpr(
+            ArithExpr(
+                AtomExpr::Num(Num {
+                    st: SyntaxToken::default(),
+                    name: String::from("1"),
+                }),
+                vec![(
+                    ArithOp::Plus,
+                    AtomExpr::Group(Box::new(CompExpr(
+                        ArithExpr(
+                            AtomExpr::Num(Num {
+                                st: SyntaxToken::default(),
+                                name: String::from("5"),
+                            }),
+                            vec![],
+                        ),
+                        None,
+                    ))),
+                )],
+            ),
+            None,
         );
         assert_cg_expr(expected_instrs, &expr);
     }

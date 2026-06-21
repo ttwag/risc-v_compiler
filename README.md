@@ -24,3 +24,11 @@ Rule: each right sibling consumes one register from the free pool,
       so max registers needed = height of the expression tree.
       ```
 ````
+
+with a stack, the 3 regs could handle expressions of arbitrary depth because each push creates a new subtree with free regs:
+
+```text
+comp_expr
+└── arith_expr (left)
+    └── atom_expr::Group  dest=t1 ← push(t0,t2); RECURSE with free={t0,t1,t2} fresh; pop
+```
