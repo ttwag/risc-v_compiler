@@ -142,14 +142,14 @@ impl<'a> CodeGen<'a> {
     fn gen_stmt(&mut self, stmt: &Stmt) -> Result<Vec<Instr>, CGError> {
         match stmt {
             Stmt::Let(id, _var_type, expr) => {
-                let var = id.name.clone();
-                if self.locals.contains_key(&var) {
+                let var = &id.name;
+                if self.locals.contains_key(var) {
                     Err(CGError::VarRedefinition(id.st.clone()))
                 } else {
                     let mut instrs = Vec::new();
                     let dst = Reg::T0;
                     instrs.extend(self.gen_expr(expr, dst)?);
-                    instrs.push(self.declare_local(var, dst));
+                    instrs.push(self.store_local(var, dst));
                     Ok(instrs)
                 }
             }
@@ -259,11 +259,11 @@ impl<'a> CodeGen<'a> {
         instrs
     }
 
-    fn declare_local(&mut self, var: String, dst: Reg) -> Instr {
+    fn store_local(&mut self, var: &str, src: Reg) -> Instr {
         let offset = self.next_local_offset;
-        self.locals.insert(var, offset);
+        self.locals.insert(var.to_owned(), offset);
         self.next_local_offset -= WORD_SIZE as i32;
-        Instr::Sw(dst, offset, Reg::S0)
+        Instr::Sw(src, offset, Reg::S0)
     }
 
     fn load_local(&self, id: &Id, dst: Reg) -> Result<Instr, CGError> {
