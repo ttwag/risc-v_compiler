@@ -153,6 +153,18 @@ impl<'a> CodeGen<'a> {
                     Ok(instrs)
                 }
             }
+            Stmt::Assign(id, expr) => {
+                let var = &id.name;
+                if self.locals.contains_key(var) {
+                    let mut instrs = Vec::new();
+                    let src = Reg::T0;
+                    instrs.extend(self.gen_expr(expr, src)?);
+                    instrs.push(self.store_local(var, src));
+                    Ok(instrs)
+                } else {
+                    Err(CGError::UndefinedVariable(id.st.clone()))
+                }
+            }
             _ => {
                 todo!()
             }
@@ -547,6 +559,31 @@ mod test {
         let program = Program::default();
         let mut cg = CodeGen::new(&program);
         let err = cg.gen_expr(&expr, Reg::A0).unwrap_err();
+        assert!(matches!(err, CGError::UndefinedVariable(..)));
+    }
+
+    // Input: b := 5 ;
+    #[test]
+    fn gen_error_undefined_var_assign() {
+        let stmt = Stmt::Assign(
+            Id {
+                st: SyntaxToken::default(),
+                name: String::from("b"),
+            },
+            CompExpr(
+                ArithExpr(
+                    AtomExpr::Num(Num {
+                        st: SyntaxToken::default(),
+                        name: String::from("5"),
+                    }),
+                    vec![],
+                ),
+                None,
+            ),
+        );
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let err = cg.gen_stmt(&stmt).unwrap_err();
         assert!(matches!(err, CGError::UndefinedVariable(..)));
     }
 }
