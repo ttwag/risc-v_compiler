@@ -1,8 +1,10 @@
 use crate::ast::{
-    ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, Id, Program, ReturnStmt, Stmt, Type,
+    ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, FuncDef, Id, Param, Program, ReturnStmt,
+    Stmt, Type,
 };
 use crate::token::{Location, SyntaxToken};
 use core::fmt;
+use std::vec;
 use std::{collections::HashMap, fmt::Display};
 
 const WORD_SIZE: usize = 4;
@@ -11,6 +13,7 @@ const WORD_SIZE: usize = 4;
 enum CGError {
     UndefinedVariable(SyntaxToken),
     VarRedefinition(SyntaxToken),
+    TooManyParam(SyntaxToken),
 }
 
 impl CGError {
@@ -20,6 +23,10 @@ impl CGError {
 
     pub fn var_redefinition(st: &SyntaxToken) -> Self {
         Self::VarRedefinition(st.clone())
+    }
+
+    pub fn too_many_param(st: &SyntaxToken) -> Self {
+        Self::TooManyParam(st.clone())
     }
 }
 
@@ -54,6 +61,13 @@ impl Display for Reg {
         match self {
             Reg::Zero => write!(f, "zero"),
             Reg::A0 => write!(f, "a0"),
+            Reg::A1 => write!(f, "a1"),
+            Reg::A2 => write!(f, "a2"),
+            Reg::A3 => write!(f, "a3"),
+            Reg::A4 => write!(f, "a4"),
+            Reg::A5 => write!(f, "a5"),
+            Reg::A6 => write!(f, "a6"),
+            Reg::A7 => write!(f, "a7"),
             Reg::T0 => write!(f, "t0"),
             Reg::T1 => write!(f, "t1"),
             Reg::T2 => write!(f, "t2"),
@@ -153,6 +167,30 @@ impl<'a> CodeGen<'a> {
             .map(|i| i.to_string())
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    fn gen_params(&mut self, params: &Vec<Param>) -> Result<Vec<Instr>, CGError> {
+        // spill param
+        let mut src_iter = [
+            Reg::A0,
+            Reg::A1,
+            Reg::A2,
+            Reg::A3,
+            Reg::A4,
+            Reg::A5,
+            Reg::A6,
+            Reg::A7,
+        ]
+        .into_iter();
+
+        let mut instrs = Vec::new();
+        for Param(id, _param_type) in params {
+            let src = src_iter
+                .next()
+                .ok_or_else(|| CGError::too_many_param(&id.st))?;
+            instrs.push(self.define_local(id, src)?);
+        }
+        Ok(instrs)
     }
 
     fn gen_return_stmt(&mut self, ReturnStmt(expr): &ReturnStmt) -> Result<Vec<Instr>, CGError> {
@@ -626,5 +664,112 @@ mod test {
         let mut cg = CodeGen::new(&program);
         let instrs = CodeGen::gen_code(cg.gen_return_stmt(&stmt).unwrap());
         assert_eq!(expected_instrs, instrs);
+    }
+
+    // Input: (a: int, b: int)
+    #[test]
+    fn gen_params_with_two_param() {
+        let expected_instrs = indoc! {"
+            sw a0, 0(s0)
+            sw a1, -4(s0)"};
+
+        let param = vec![
+            Param(
+                Id {
+                    st: SyntaxToken::default(),
+                    name: String::from("a"),
+                },
+                Type::Int,
+            ),
+            Param(
+                Id {
+                    st: SyntaxToken::default(),
+                    name: String::from("b"),
+                },
+                Type::Int,
+            ),
+        ];
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let instrs = CodeGen::gen_code(cg.gen_params(&param).unwrap());
+        assert_eq!(expected_instrs, instrs);
+    }
+
+    // Input: (a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int, i: int)
+    #[test]
+    fn gen_params_with_too_many_param() {
+        let expected_instrs = indoc! {"
+            sw a0, 0(s0)
+            sw a1, -4(s0)"};
+
+        let param = vec![
+            Param(
+                Id {
+                    st: SyntaxToken::default(),
+                    name: String::from("a"),
+                },
+                Type::Int,
+            ),
+            Param(
+                Id {
+                    st: SyntaxToken::default(),
+                    name: String::from("b"),
+                },
+                Type::Int,
+            ),
+            Param(
+                Id {
+                    st: SyntaxToken::default(),
+                    name: String::from("c"),
+                },
+                Type::Int,
+            ),
+            Param(
+                Id {
+                    st: SyntaxToken::default(),
+                    name: String::from("d"),
+                },
+                Type::Int,
+            ),
+            Param(
+                Id {
+                    st: SyntaxToken::default(),
+                    name: String::from("e"),
+                },
+                Type::Int,
+            ),
+            Param(
+                Id {
+                    st: SyntaxToken::default(),
+                    name: String::from("f"),
+                },
+                Type::Int,
+            ),
+            Param(
+                Id {
+                    st: SyntaxToken::default(),
+                    name: String::from("g"),
+                },
+                Type::Int,
+            ),
+            Param(
+                Id {
+                    st: SyntaxToken::default(),
+                    name: String::from("h"),
+                },
+                Type::Int,
+            ),
+            Param(
+                Id {
+                    st: SyntaxToken::default(),
+                    name: String::from("i"),
+                },
+                Type::Int,
+            ),
+        ];
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let err = cg.gen_params(&param).unwrap_err();
+        assert!(matches!(err, CGError::TooManyParam(..)));
     }
 }
