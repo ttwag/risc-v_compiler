@@ -1,4 +1,6 @@
-use crate::ast::{ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, Id, Program, Stmt, Type};
+use crate::ast::{
+    ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, Id, Program, ReturnStmt, Stmt, Type,
+};
 use crate::token::{Location, SyntaxToken};
 use core::fmt;
 use std::{collections::HashMap, fmt::Display};
@@ -88,6 +90,9 @@ enum Instr {
 
     // jump and link register
     Jalr(Reg, Reg, i32), //jalr rd, rs1, imm
+
+    // return (jalr x0, ra, 0)
+    Ret,
 }
 
 impl Instr {
@@ -114,6 +119,7 @@ impl Display for Instr {
             Instr::Seqz(rd, rs1)           => write!(f, "seqz {}, {}", rd, rs1),
             Instr::Sw(rs2, offset, rs1) => write!(f, "sw {}, {}({})", rs2, offset, rs1),
             Instr::Lw(rd, offset, rs1) => write!(f, "lw {}, {}({})", rd, offset, rs1),
+            Instr::Ret => write!(f, "ret"),
             _ => {
                 todo!()
             }
@@ -147,6 +153,13 @@ impl<'a> CodeGen<'a> {
             .map(|i| i.to_string())
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    fn gen_return_stmt(&mut self, ReturnStmt(expr): &ReturnStmt) -> Result<Vec<Instr>, CGError> {
+        let mut instrs = Vec::new();
+        instrs.extend(self.gen_expr(expr, Reg::A0)?);
+        instrs.push(Instr::Ret);
+        Ok(instrs)
     }
 
     fn gen_stmt(&mut self, stmt: &Stmt) -> Result<Vec<Instr>, CGError> {
@@ -595,5 +608,29 @@ mod test {
         let mut cg = CodeGen::new(&program);
         let err = cg.gen_stmt(&stmt).unwrap_err();
         assert!(matches!(err, CGError::UndefinedVariable(..)));
+    }
+
+    // Input: return 5;
+    #[test]
+    fn gen_return_stmt() {
+        let expected_instrs = indoc! {"
+            li t1, 5
+            mv t0, t1
+            mv a0, t0
+            ret"};
+        let stmt = ReturnStmt(CompExpr(
+            ArithExpr(
+                AtomExpr::Num(Num {
+                    st: SyntaxToken::default(),
+                    name: String::from("5"),
+                }),
+                vec![],
+            ),
+            None,
+        ));
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let instrs = CodeGen::gen_code(cg.gen_return_stmt(&stmt).unwrap());
+        assert_eq!(expected_instrs, instrs);
     }
 }
