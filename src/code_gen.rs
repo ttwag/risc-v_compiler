@@ -199,8 +199,7 @@ impl<'a> CodeGen<'a> {
 
         match expr {
             CompExpr(lhs, None) => {
-                instrs.extend(self.gen_arith_expr(lhs, Reg::T0)?);
-                instrs.extend(Instr::gen_mv(dst, Reg::T0));
+                instrs.extend(self.gen_arith_expr(lhs, dst)?);
             }
             CompExpr(lhs, Some((op, rhs))) => {
                 instrs.extend(self.gen_arith_expr(lhs, Reg::T0)?);
@@ -222,7 +221,8 @@ impl<'a> CodeGen<'a> {
         let mut instrs = Vec::new();
         match expr {
             ArithExpr(lhs, _v) if _v.is_empty() => {
-                instrs.extend(self.gen_atom_expr(lhs, Reg::T1)?);
+                // safe to store to dst because there's no temporary result from arithmetic
+                instrs.extend(self.gen_atom_expr(lhs, dst)?);
             }
             ArithExpr(lhs, v) => {
                 instrs.extend(self.gen_atom_expr(lhs, Reg::T1)?);
@@ -230,9 +230,10 @@ impl<'a> CodeGen<'a> {
                     instrs.extend(self.gen_atom_expr(rhs, Reg::T2)?);
                     instrs.extend(CodeGen::gen_arith_op(op, Reg::T1, Reg::T1, Reg::T2));
                 }
+                // a final move is needed in this arm because the temporary result of arithmetic is stored in T1, but dst might be T0
+                instrs.extend(Instr::gen_mv(dst, Reg::T1));
             }
         }
-        instrs.extend(Instr::gen_mv(dst, Reg::T1));
         Ok(instrs)
     }
 
@@ -319,6 +320,7 @@ mod test {
     use indoc::indoc;
     use pretty_assertions::assert_eq;
 
+    #[track_caller]
     fn assert_cg_expr(expected_instrs: &str, expr: &CompExpr) {
         let program = Program::default();
         let mut cg = CodeGen::new(&program);
@@ -330,9 +332,7 @@ mod test {
     #[test]
     fn gen_comp_with_lhs_num() {
         let expected_instrs = indoc! {"
-        li t1, 5
-        mv t0, t1
-        mv a0, t0"};
+        li a0, 5"};
         let expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
@@ -350,8 +350,7 @@ mod test {
     #[test]
     fn gen_comp_grt_with_lhs_rhs_num() {
         let expected_instrs = indoc! {"
-        li t1, 5
-        mv t0, t1
+        li t0, 5
         li t1, 6
         slt a0, t1, t0"};
         let expr = CompExpr(
@@ -380,8 +379,7 @@ mod test {
     #[test]
     fn gen_comp_equality_with_lhs_rhs_num() {
         let expected_instrs = indoc! {"
-        li t1, 5
-        mv t0, t1
+        li t0, 5
         li t1, 6
         xor t0, t0, t1
         seqz a0, t0"};
@@ -416,8 +414,7 @@ mod test {
         add t1, t1, t2
         li t2, 10
         sub t1, t1, t2
-        mv t0, t1
-        mv a0, t0"};
+        mv a0, t1"};
         let expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
@@ -501,15 +498,12 @@ mod test {
         addi sp, sp, -8
         sw t0, 0(sp)
         sw t1, 4(sp)
-        li t1, 5
-        mv t0, t1
-        mv t2, t0
+        li t2, 5
         lw t0, 0(sp)
         lw t1, 4(sp)
         addi sp, sp, 8
         add t1, t1, t2
-        mv t0, t1
-        mv a0, t0"};
+        mv a0, t1"};
         let expr: Expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
@@ -539,8 +533,7 @@ mod test {
     #[test]
     fn gen_let_stmt() {
         let expected_instrs = indoc! {"
-            li t1, 5
-            mv t0, t1
+            li t0, 5
             sw t0, 0(s0)"};
 
         let stmt: Stmt = Stmt::Let(
@@ -614,9 +607,7 @@ mod test {
     #[test]
     fn gen_return_stmt() {
         let expected_instrs = indoc! {"
-            li t1, 5
-            mv t0, t1
-            mv a0, t0
+            li a0, 5
             ret"};
         let stmt = ReturnStmt(CompExpr(
             ArithExpr(
