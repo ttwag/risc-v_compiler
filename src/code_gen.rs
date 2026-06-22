@@ -11,6 +11,16 @@ enum CGError {
     VarRedefinition(SyntaxToken),
 }
 
+impl CGError {
+    pub fn undefined_variable(st: &SyntaxToken) -> Self {
+        Self::UndefinedVariable(st.clone())
+    }
+
+    pub fn var_redefinition(st: &SyntaxToken) -> Self {
+        Self::VarRedefinition(st.clone())
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Reg {
     // stack pointer
@@ -144,7 +154,7 @@ impl<'a> CodeGen<'a> {
             Stmt::Let(id, _var_type, expr) => {
                 let var = &id.name;
                 if self.locals.contains_key(var) {
-                    Err(CGError::VarRedefinition(id.st.clone()))
+                    Err(CGError::var_redefinition(&id.st))
                 } else {
                     let mut instrs = Vec::new();
                     let dst = Reg::T0;
@@ -162,7 +172,7 @@ impl<'a> CodeGen<'a> {
                     instrs.push(self.store_local(var, src));
                     Ok(instrs)
                 } else {
-                    Err(CGError::UndefinedVariable(id.st.clone()))
+                    Err(CGError::undefined_variable(&id.st))
                 }
             }
             _ => {
@@ -283,7 +293,7 @@ impl<'a> CodeGen<'a> {
         if let Some(&offset) = self.locals.get(var) {
             Ok(Instr::Lw(dst, offset, Reg::S0))
         } else {
-            Err(CGError::UndefinedVariable(id.st.clone()))
+            Err(CGError::undefined_variable(&id.st))
         }
     }
 }
