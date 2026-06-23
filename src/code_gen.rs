@@ -73,6 +73,7 @@ impl Display for Reg {
             Reg::T2 => write!(f, "t2"),
             Reg::Sp => write!(f, "sp"),
             Reg::S0 => write!(f, "s0"),
+            Reg::Ra => write!(f, "ra"),
             _ => {
                 todo!()
             }
@@ -124,18 +125,20 @@ impl Instr {
 #[rustfmt::skip]
 impl Display for Instr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        const INDENT: &str = "    "; // 4 spaces
         match self {
-            Instr::Add(rd, rs1, rs2) => write!(f, "add {}, {}, {}", rd, rs1, rs2),
-            Instr::Addi(rd, rs1, imm) => write!(f, "addi {}, {}, {}", rd, rs1, imm),
-            Instr::Sub(rd, rs1, rs2) => write!(f, "sub {}, {}, {}", rd, rs1, rs2),
-            Instr::Li(rd, imm)             => write!(f, "li {}, {}", rd, imm),
-            Instr::Mv(rd, rs1)             => write!(f, "mv {}, {}", rd, rs1),
-            Instr::Slt(rd, rs1, rs2) => write!(f, "slt {}, {}, {}", rd, rs1, rs2),
-            Instr::Xor(rd, rs1, rs2) => write!(f, "xor {}, {}, {}", rd, rs1, rs2),
-            Instr::Seqz(rd, rs1)           => write!(f, "seqz {}, {}", rd, rs1),
-            Instr::Sw(rs2, offset, rs1) => write!(f, "sw {}, {}({})", rs2, offset, rs1),
-            Instr::Lw(rd, offset, rs1) => write!(f, "lw {}, {}({})", rd, offset, rs1),
-            Instr::Ret => write!(f, "ret"),
+            Instr::Add(rd, rs1, rs2) => write!(f, "{}add {}, {}, {}", INDENT, rd, rs1, rs2),
+            Instr::Addi(rd, rs1, imm) => write!(f, "{}addi {}, {}, {}", INDENT, rd, rs1, imm),
+            Instr::Sub(rd, rs1, rs2) => write!(f, "{}sub {}, {}, {}", INDENT, rd, rs1, rs2),
+            Instr::Li(rd, imm)             => write!(f, "{}li {}, {}", INDENT, rd, imm),
+            Instr::Mv(rd, rs1)             => write!(f, "{}mv {}, {}", INDENT, rd, rs1),
+            Instr::Slt(rd, rs1, rs2) => write!(f, "{}slt {}, {}, {}", INDENT, rd, rs1, rs2),
+            Instr::Xor(rd, rs1, rs2) => write!(f, "{}xor {}, {}, {}", INDENT, rd, rs1, rs2),
+            Instr::Seqz(rd, rs1)           => write!(f, "{}seqz {}, {}", INDENT, rd, rs1),
+            Instr::Sw(rs2, offset, rs1) => write!(f, "{}sw {}, {}({})", INDENT, rs2, offset, rs1),
+            Instr::Lw(rd, offset, rs1) => write!(f, "{}lw {}, {}({})", INDENT, rd, offset, rs1),
+            Instr::Ret => write!(f, "{}ret", INDENT),
+            Instr::Label(name) => write!(f, "{}:", name),
             _ => {
                 todo!()
             }
@@ -419,18 +422,22 @@ mod test {
     use pretty_assertions::assert_eq;
 
     #[track_caller]
-    fn assert_cg_expr(expected_instrs: &str, expr: &CompExpr) {
+    fn assert_cg_expr(expected_instrs: String, expr: &CompExpr) {
         let program = Program::default();
         let mut cg = CodeGen::new(&program);
         let instrs = CodeGen::gen_code(cg.gen_expr(&expr, Reg::A0).unwrap());
         assert_eq!(expected_instrs, instrs);
     }
 
+    fn format_instr_not_in_func(instrs: &str) -> String {
+        format!("    {}", instrs.replace('\n', "\n    "))
+    }
+
     // ── Expr ───────────────────────────────────────────────────────────────
     #[test]
     fn gen_comp_with_lhs_num() {
-        let expected_instrs = indoc! {"
-        li a0, 5"};
+        let expected_instrs = format_instr_not_in_func(indoc! {"
+        li a0, 5"});
         let expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
@@ -447,10 +454,10 @@ mod test {
     // Input: 5 > 6
     #[test]
     fn gen_comp_grt_with_lhs_rhs_num() {
-        let expected_instrs = indoc! {"
+        let expected_instrs = format_instr_not_in_func(indoc! {"
         li t0, 5
         li t1, 6
-        slt a0, t1, t0"};
+        slt a0, t1, t0"});
         let expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
@@ -476,11 +483,11 @@ mod test {
     // Input: 5 == 6
     #[test]
     fn gen_comp_equality_with_lhs_rhs_num() {
-        let expected_instrs = indoc! {"
+        let expected_instrs = format_instr_not_in_func(indoc! {"
         li t0, 5
         li t1, 6
         xor t0, t0, t1
-        seqz a0, t0"};
+        seqz a0, t0"});
         let expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
@@ -506,13 +513,13 @@ mod test {
     // Input: 5 + 7 - 10
     #[test]
     fn gen_arith_plus_minus_with_lhs_rhs_num() {
-        let expected_instrs = indoc! {"
+        let expected_instrs = format_instr_not_in_func(indoc! {"
         li t1, 5
         li t2, 7
         add t1, t1, t2
         li t2, 10
         sub t1, t1, t2
-        mv a0, t1"};
+        mv a0, t1"});
         let expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
@@ -544,7 +551,7 @@ mod test {
     // Input: 5 + 8 == 6 + 7
     #[test]
     fn gen_comp_equality_with_lhs_rhs_arith() {
-        let expected_instrs = indoc! {"
+        let expected_instrs = format_instr_not_in_func(indoc! {"
         li t1, 5
         li t2, 8
         add t1, t1, t2
@@ -553,7 +560,7 @@ mod test {
         li t2, 7
         add t1, t1, t2
         xor t0, t0, t1
-        seqz a0, t0"};
+        seqz a0, t0"});
         let expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
@@ -591,7 +598,7 @@ mod test {
     // Input: 1 + (5)
     #[test]
     fn gen_comp_with_lhs_group() {
-        let expected_instrs = indoc! {"
+        let expected_instrs = format_instr_not_in_func(indoc! {"
         li t1, 1
         sw t0, -4(s0)
         sw t1, -8(s0)
@@ -599,7 +606,7 @@ mod test {
         lw t0, -4(s0)
         lw t1, -8(s0)
         add t1, t1, t2
-        mv a0, t1"};
+        mv a0, t1"});
         let expr: Expr = CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
@@ -628,9 +635,9 @@ mod test {
     // Input: let a: int := 5 ;
     #[test]
     fn gen_let_stmt() {
-        let expected_instrs = indoc! {"
+        let expected_instrs = format_instr_not_in_func(indoc! {"
             li t0, 5
-            sw t0, -4(s0)"};
+            sw t0, -4(s0)"});
 
         let stmt: Stmt = Stmt::Let(
             Id {
@@ -702,9 +709,9 @@ mod test {
     // Input: return 5;
     #[test]
     fn gen_return_stmt() {
-        let expected_instrs = indoc! {"
+        let expected = format_instr_not_in_func(indoc! {"
             li a0, 5
-            ret"};
+            ret"});
         let stmt = ReturnStmt(CompExpr(
             ArithExpr(
                 AtomExpr::Num(Num {
@@ -718,15 +725,15 @@ mod test {
         let program = Program::default();
         let mut cg = CodeGen::new(&program);
         let instrs = CodeGen::gen_code(cg.gen_return_stmt(&stmt).unwrap());
-        assert_eq!(expected_instrs, instrs);
+        assert_eq!(expected, instrs);
     }
 
     // Input: (a: int, b: int)
     #[test]
     fn gen_params_with_two_param() {
-        let expected_instrs = indoc! {"
+        let expected_instrs = format_instr_not_in_func(indoc! {"
             sw a0, -4(s0)
-            sw a1, -8(s0)"};
+            sw a1, -8(s0)"});
 
         let param = vec![
             Param(
@@ -826,5 +833,44 @@ mod test {
         let mut cg = CodeGen::new(&program);
         let err = cg.gen_params(&param).unwrap_err();
         assert!(matches!(err, CGError::TooManyParam(..)));
+    }
+
+    // Input: fn foo() -> int { return 0 ; }
+    #[test]
+    fn gen_func_with_no_param() {
+        let expected_instrs = indoc! {"
+            foo:
+                addi sp, sp, -16
+                sw ra, 8(sp)
+                sw s0, 12(sp)
+                addi s0, sp, 16
+                li a0, 0
+                lw ra, -8(s0)
+                lw s0, -4(s0)
+                addi sp, sp, 16
+                ret"};
+        let func_def = FuncDef {
+            name: Id {
+                st: SyntaxToken::default(),
+                name: String::from("foo"),
+            },
+            params: vec![],
+            ret: Type::Int,
+            body: vec![],
+            ret_stmt: ReturnStmt(CompExpr(
+                ArithExpr(
+                    AtomExpr::Num(Num {
+                        st: SyntaxToken::default(),
+                        name: String::from("0"),
+                    }),
+                    vec![],
+                ),
+                None,
+            )),
+        };
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let instrs = CodeGen::gen_code(cg.gen_func_def(&func_def).unwrap());
+        assert_eq!(expected_instrs, instrs);
     }
 }
