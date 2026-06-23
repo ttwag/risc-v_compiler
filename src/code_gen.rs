@@ -213,18 +213,14 @@ impl Frame {
 
 struct CodeGen<'a> {
     ast: &'a Program,
-    stack: Vec<Vec<Reg>>,
-    locals: HashMap<String, i32>,
-    local_offset: i32,
+    frame: Frame,
 }
 
 impl<'a> CodeGen<'a> {
     fn new(ast: &'a Program) -> Self {
         Self {
             ast,
-            stack: vec![],
-            locals: HashMap::new(),
-            local_offset: 0,
+            frame: Frame::new(),
         }
     }
 
@@ -259,7 +255,7 @@ impl<'a> CodeGen<'a> {
             let src = src_iter
                 .next()
                 .ok_or_else(|| CGError::too_many_param(&id.st))?;
-            instrs.push(self.define_local(id, src)?);
+            instrs.push(self.frame.define_local(id, src)?);
         }
         Ok(instrs)
     }
@@ -278,11 +274,11 @@ impl<'a> CodeGen<'a> {
                 let dst = Reg::T0;
 
                 instrs.extend(self.gen_expr(expr, dst)?);
-                instrs.push(self.define_local(id, dst)?);
+                instrs.push(self.frame.define_local(id, dst)?);
                 Ok(instrs)
             }
             Stmt::Assign(id, expr) => {
-                let offset = self.load_local_offset(id)?;
+                let offset = self.frame.get_local_offset(id)?;
                 let mut instrs = Vec::new();
                 let src = Reg::T0;
 
@@ -349,77 +345,22 @@ impl<'a> CodeGen<'a> {
     fn gen_atom_expr(&mut self, expr: &AtomExpr, dst: Reg) -> Result<Vec<Instr>, CGError> {
         match expr {
             AtomExpr::Num(num) => Ok(vec![Instr::Li(dst, num.name.parse().unwrap())]),
-            AtomExpr::Id(id) => Ok(vec![self.load_local_val(id, dst)?]),
+            AtomExpr::Id(id) => Ok(vec![self.frame.load_local(id, dst)?]),
             AtomExpr::Group(expr) => {
                 let mut instrs = Vec::new();
                 let regs = [Reg::T0, Reg::T1, Reg::T2]
                     .into_iter()
                     .filter(|&r| r != dst)
                     .collect::<Vec<_>>();
-                instrs.extend(self.push(regs));
+                instrs.extend(self.frame.spill(regs));
                 instrs.extend(self.gen_expr(expr, dst)?);
-                instrs.extend(self.pop());
+                instrs.extend(self.frame.unspill());
                 Ok(instrs)
             }
             _ => {
                 todo!()
             }
         }
-    }
-
-    fn push(&mut self, regs: Vec<Reg>) -> Vec<Instr> {
-        let mut instrs = Vec::new();
-        let size = regs.len();
-
-        let mut offset = 0;
-        instrs.push(Instr::Addi(Reg::Sp, Reg::Sp, -((size * WORD_SIZE) as i32)));
-        for reg in &regs {
-            instrs.push(Instr::Sw(reg.clone(), offset, Reg::Sp));
-            offset += WORD_SIZE as i32;
-        }
-
-        self.stack.push(regs);
-        instrs
-    }
-
-    fn pop(&mut self) -> Vec<Instr> {
-        let regs = self.stack.pop().expect("pop with empty stack");
-        let size = regs.len();
-        let mut instrs = Vec::new();
-
-        let mut offset = 0;
-        for reg in regs {
-            instrs.push(Instr::Lw(reg, offset, Reg::Sp));
-            offset += WORD_SIZE as i32;
-        }
-
-        instrs.push(Instr::Addi(Reg::Sp, Reg::Sp, (size * WORD_SIZE) as i32));
-        instrs
-    }
-
-    fn define_local(&mut self, id: &Id, src: Reg) -> Result<Instr, CGError> {
-        let var = &id.name;
-        if self.locals.contains_key(var) {
-            Err(CGError::var_redefinition(&id.st))
-        } else {
-            self.local_offset -= WORD_SIZE as i32;
-            self.locals.insert(var.to_owned(), self.local_offset);
-            Ok(Instr::Sw(src, self.local_offset, Reg::S0))
-        }
-    }
-
-    fn load_local_offset(&self, id: &Id) -> Result<i32, CGError> {
-        let var = &id.name;
-        if let Some(&offset) = self.locals.get(var) {
-            Ok(offset)
-        } else {
-            Err(CGError::undefined_variable(&id.st))
-        }
-    }
-
-    fn load_local_val(&self, id: &Id, dst: Reg) -> Result<Instr, CGError> {
-        let offset = self.load_local_offset(id)?;
-        Ok(Instr::Lw(dst, offset, Reg::S0))
     }
 }
 
@@ -606,13 +547,11 @@ mod test {
     fn gen_comp_with_lhs_group() {
         let expected_instrs = indoc! {"
         li t1, 1
-        addi sp, sp, -8
-        sw t0, 0(sp)
-        sw t1, 4(sp)
+        sw t0, -4(s0)
+        sw t1, -8(s0)
         li t2, 5
-        lw t0, 0(sp)
-        lw t1, 4(sp)
-        addi sp, sp, 8
+        lw t0, -4(s0)
+        lw t1, -8(s0)
         add t1, t1, t2
         mv a0, t1"};
         let expr: Expr = CompExpr(
