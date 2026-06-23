@@ -140,6 +140,77 @@ impl Display for Instr {
         }
     }
 }
+
+struct Frame {
+    spill_stack: Vec<Vec<(Reg, i32)>>,
+    locals: HashMap<String, i32>,
+    frame_offset: i32,
+}
+
+impl Frame {
+    fn new() -> Self {
+        Self {
+            spill_stack: vec![],
+            locals: HashMap::new(),
+            frame_offset: 0,
+        }
+    }
+
+    fn alloc_slot(&mut self) -> i32 {
+        self.frame_offset -= WORD_SIZE as i32;
+        self.frame_offset
+    }
+
+    fn spill(&mut self, regs: Vec<Reg>) -> Vec<Instr> {
+        let mut instrs = Vec::new();
+        let mut spill = Vec::new();
+        for &reg in &regs {
+            let offset = self.alloc_slot();
+            spill.push((reg, offset));
+            instrs.push(Instr::Sw(reg, offset, Reg::S0));
+        }
+        self.spill_stack.push(spill);
+
+        instrs
+    }
+
+    fn unspill(&mut self) -> Vec<Instr> {
+        let spill = self.spill_stack.pop().expect("pop with empty stack");
+        let mut instrs = Vec::new();
+
+        for (reg, offset) in spill {
+            instrs.push(Instr::Lw(reg, offset, Reg::S0));
+        }
+
+        instrs
+    }
+
+    fn define_local(&mut self, id: &Id, src: Reg) -> Result<Instr, CGError> {
+        let var = &id.name;
+        if self.locals.contains_key(var) {
+            Err(CGError::var_redefinition(&id.st))
+        } else {
+            let offset = self.alloc_slot();
+            self.locals.insert(var.to_owned(), offset);
+            Ok(Instr::Sw(src, self.frame_offset, Reg::S0))
+        }
+    }
+
+    fn get_local_offset(&self, id: &Id) -> Result<i32, CGError> {
+        let var = &id.name;
+        if let Some(&offset) = self.locals.get(var) {
+            Ok(offset)
+        } else {
+            Err(CGError::undefined_variable(&id.st))
+        }
+    }
+
+    fn load_local(&self, id: &Id, dst: Reg) -> Result<Instr, CGError> {
+        let offset = self.get_local_offset(id)?;
+        Ok(Instr::Lw(dst, offset, Reg::S0))
+    }
+}
+
 struct CodeGen<'a> {
     ast: &'a Program,
     stack: Vec<Vec<Reg>>,
