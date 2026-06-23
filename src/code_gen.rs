@@ -144,7 +144,7 @@ struct CodeGen<'a> {
     ast: &'a Program,
     stack: Vec<Vec<Reg>>,
     locals: HashMap<String, i32>,
-    next_local_offset: i32,
+    local_offset: i32,
 }
 
 impl<'a> CodeGen<'a> {
@@ -153,7 +153,7 @@ impl<'a> CodeGen<'a> {
             ast,
             stack: vec![],
             locals: HashMap::new(),
-            next_local_offset: 0,
+            local_offset: 0,
         }
     }
 
@@ -331,10 +331,9 @@ impl<'a> CodeGen<'a> {
         if self.locals.contains_key(var) {
             Err(CGError::var_redefinition(&id.st))
         } else {
-            let offset = self.next_local_offset;
-            self.locals.insert(var.to_owned(), offset);
-            self.next_local_offset -= WORD_SIZE as i32;
-            Ok(Instr::Sw(src, offset, Reg::S0))
+            self.local_offset -= WORD_SIZE as i32;
+            self.locals.insert(var.to_owned(), self.local_offset);
+            Ok(Instr::Sw(src, self.local_offset, Reg::S0))
         }
     }
 
@@ -575,7 +574,7 @@ mod test {
     fn gen_let_stmt() {
         let expected_instrs = indoc! {"
             li t0, 5
-            sw t0, 0(s0)"};
+            sw t0, -4(s0)"};
 
         let stmt: Stmt = Stmt::Let(
             Id {
@@ -670,8 +669,8 @@ mod test {
     #[test]
     fn gen_params_with_two_param() {
         let expected_instrs = indoc! {"
-            sw a0, 0(s0)
-            sw a1, -4(s0)"};
+            sw a0, -4(s0)
+            sw a1, -8(s0)"};
 
         let param = vec![
             Param(
