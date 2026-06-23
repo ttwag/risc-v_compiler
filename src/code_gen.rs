@@ -107,6 +107,8 @@ enum Instr {
 
     // return (jalr x0, ra, 0)
     Ret,
+
+    Label(String),
 }
 
 impl Instr {
@@ -234,6 +236,50 @@ impl<'a> CodeGen<'a> {
             .map(|i| i.to_string())
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    fn gen_func_def(&mut self, func: &FuncDef) -> Result<Vec<Instr>, CGError> {
+        let FuncDef {
+            params,
+            body,
+            ret_stmt,
+            ..
+        } = func;
+        let ReturnStmt(return_expr) = ret_stmt;
+        let mut instrs = Vec::new();
+        self.frame = Frame::new();
+
+        // ra (caller saved), s0 (callee saved)
+        let s0_offset = self.frame.alloc_slot();
+        let ra_offset = self.frame.alloc_slot();
+
+        // code generation
+        instrs.extend(self.gen_params(params)?);
+        for stmt in body {
+            instrs.extend(self.gen_stmt(stmt)?);
+        }
+        instrs.extend(self.gen_expr(return_expr, Reg::A0)?);
+
+        // code for entering and exiting the function
+        let frame_size = (((-self.frame.frame_offset as usize) + 15) & !15) as i32; // frame size must be 16 byte-aligned
+        let mut prologue = vec![
+            Instr::Label(func.name.name.clone()),
+            Instr::Addi(Reg::Sp, Reg::Sp, -frame_size), // move Sp up to the frame size
+            // sp-relative = frame_size + s0-relative
+            Instr::Sw(Reg::Ra, frame_size + ra_offset, Reg::Sp), // save return address to frame
+            Instr::Sw(Reg::S0, frame_size + s0_offset, Reg::Sp), // save current S0 to frame
+            Instr::Addi(Reg::S0, Reg::Sp, frame_size),           // put S0 at the base of the frame
+        ];
+        let epilogue = vec![
+            Instr::Lw(Reg::Ra, ra_offset, Reg::S0), // load return address from frame to reg
+            Instr::Lw(Reg::S0, s0_offset, Reg::S0), // load s0 from frame to reg
+            Instr::Addi(Reg::Sp, Reg::Sp, frame_size), // move sp back to base
+            Instr::Ret,                             // return to return address
+        ];
+
+        instrs.extend(epilogue);
+        prologue.extend(instrs);
+        Ok(prologue)
     }
 
     fn gen_params(&mut self, params: &Vec<Param>) -> Result<Vec<Instr>, CGError> {
