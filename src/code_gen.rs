@@ -7,8 +7,6 @@ use core::fmt;
 use std::vec;
 use std::{collections::HashMap, fmt::Display};
 
-const WORD_SIZE: usize = 4;
-
 #[derive(Debug)]
 enum CGError {
     UndefinedVariable(SyntaxToken),
@@ -163,6 +161,7 @@ struct Frame {
 }
 
 impl Frame {
+    const WORD_SIZE: usize = 4;
     fn new() -> Self {
         Self {
             spill_stack: vec![],
@@ -172,7 +171,7 @@ impl Frame {
     }
 
     fn alloc_slot(&mut self) -> i32 {
-        self.frame_offset -= WORD_SIZE as i32;
+        self.frame_offset -= Self::WORD_SIZE as i32;
         self.frame_offset
     }
 
