@@ -14,6 +14,7 @@ enum CGError {
     UndefinedVariable(SyntaxToken),
     VarRedefinition(SyntaxToken),
     TooManyParam(SyntaxToken),
+    UndefinedMain,
 }
 
 impl CGError {
@@ -110,6 +111,12 @@ enum Instr {
     Ret,
 
     Label(String),
+
+    Directive(String),
+
+    Call(String),
+
+    Ecall,
 }
 
 impl Instr {
@@ -139,6 +146,9 @@ impl Display for Instr {
             Instr::Lw(rd, offset, rs1) => write!(f, "{}lw {}, {}({})", INDENT, rd, offset, rs1),
             Instr::Ret => write!(f, "{}ret", INDENT),
             Instr::Label(name) => write!(f, "{}:", name),
+            Instr::Directive(text) => write!(f, "{}", text),
+            Instr::Call(label) => write!(f, "{}call {}", INDENT, label),
+            Instr::Ecall => write!(f, "{}ecall", INDENT),
             _ => {
                 todo!()
             }
@@ -217,20 +227,42 @@ impl Frame {
 }
 
 struct CodeGen<'a> {
-    ast: &'a Program,
+    program: &'a Program,
     frame: Frame,
 }
 
 impl<'a> CodeGen<'a> {
-    fn new(ast: &'a Program) -> Self {
+    fn new(program: &'a Program) -> Self {
         Self {
-            ast,
+            program,
             frame: Frame::new(),
         }
     }
 
-    fn gen_program(&self) -> Vec<Instr> {
-        todo!()
+    fn gen_program(&mut self) -> Result<Vec<Instr>, CGError> {
+        let mut instrs = Vec::new();
+        let mut has_main = false;
+        let Program(func_defs) = self.program;
+
+        for func_def in func_defs {
+            has_main = func_def.name.name == "main";
+            instrs.extend(self.gen_func_def(func_def)?);
+        }
+
+        if !has_main {
+            Err(CGError::UndefinedMain)
+        } else {
+            let mut directives = vec![
+                Instr::Directive(String::from(".text")),
+                Instr::Directive(String::from(".global _start")),
+                Instr::Label(String::from("_start")),
+                Instr::Call(String::from("main")),
+                Instr::Li(Reg::A7, 93),
+                Instr::Ecall,
+            ];
+            directives.extend(instrs);
+            Ok(directives)
+        }
     }
 
     pub fn gen_code(program: Vec<Instr>) -> String {
@@ -241,13 +273,13 @@ impl<'a> CodeGen<'a> {
             .join("\n")
     }
 
-    fn gen_func_def(&mut self, func: &FuncDef) -> Result<Vec<Instr>, CGError> {
+    fn gen_func_def(&mut self, func_def: &FuncDef) -> Result<Vec<Instr>, CGError> {
         let FuncDef {
             params,
             body,
             ret_stmt,
             ..
-        } = func;
+        } = func_def;
         let ReturnStmt(return_expr) = ret_stmt;
         let mut instrs = Vec::new();
         self.frame = Frame::new();
@@ -266,7 +298,7 @@ impl<'a> CodeGen<'a> {
         // code for entering and exiting the function
         let frame_size = (((-self.frame.frame_offset as usize) + 15) & !15) as i32; // frame size must be 16 byte-aligned
         let mut prologue = vec![
-            Instr::Label(func.name.name.clone()),
+            Instr::Label(func_def.name.name.clone()),
             Instr::Addi(Reg::Sp, Reg::Sp, -frame_size), // move Sp up to the frame size
             // sp-relative = frame_size + s0-relative
             Instr::Sw(Reg::Ra, frame_size + ra_offset, Reg::Sp), // save return address to frame
@@ -871,6 +903,50 @@ mod test {
         let program = Program::default();
         let mut cg = CodeGen::new(&program);
         let instrs = CodeGen::gen_code(cg.gen_func_def(&func_def).unwrap());
+        assert_eq!(expected_instrs, instrs);
+    }
+
+    // Input: fn main() -> int { return 100 ; }
+    #[test]
+    fn gen_program_with_main() {
+        let expected_instrs = indoc! {"
+            .text
+            .global _start
+            _start:
+                call main
+                li a7, 93
+                ecall
+            main:
+                addi sp, sp, -16
+                sw ra, 8(sp)
+                sw s0, 12(sp)
+                addi s0, sp, 16
+                li a0, 100
+                lw ra, -8(s0)
+                lw s0, -4(s0)
+                addi sp, sp, 16
+                ret"};
+        let program = Program(vec![FuncDef {
+            name: Id {
+                st: SyntaxToken::default(),
+                name: String::from("main"),
+            },
+            params: vec![],
+            ret: Type::Int,
+            body: vec![],
+            ret_stmt: ReturnStmt(CompExpr(
+                ArithExpr(
+                    AtomExpr::Num(Num {
+                        st: SyntaxToken::default(),
+                        name: String::from("100"),
+                    }),
+                    vec![],
+                ),
+                None,
+            )),
+        }]);
+        let mut cg = CodeGen::new(&program);
+        let instrs = CodeGen::gen_code(cg.gen_program().unwrap());
         assert_eq!(expected_instrs, instrs);
     }
 }
