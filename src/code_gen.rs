@@ -2,6 +2,7 @@ use crate::ast::{
     ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, FuncDef, Id, Param, Program, ReturnStmt,
     Stmt, Type,
 };
+use crate::code_gen::CGError::TooManyParam;
 use crate::token::{Location, SyntaxToken};
 use core::fmt;
 use std::vec;
@@ -10,6 +11,7 @@ use std::{collections::HashMap, fmt::Display};
 #[derive(Debug)]
 enum CGError {
     UndefinedVariable(SyntaxToken),
+    UndefinedFunction(SyntaxToken),
     VarRedefinition(SyntaxToken),
     TooManyParam(SyntaxToken),
     UndefinedMain,
@@ -18,6 +20,10 @@ enum CGError {
 impl CGError {
     pub fn undefined_variable(st: &SyntaxToken) -> Self {
         Self::UndefinedVariable(st.clone())
+    }
+
+    pub fn undefined_function(st: &SyntaxToken) -> Self {
+        Self::UndefinedFunction(st.clone())
     }
 
     pub fn var_redefinition(st: &SyntaxToken) -> Self {
@@ -228,6 +234,7 @@ impl Frame {
 struct CodeGen<'a> {
     program: &'a Program,
     frame: Frame,
+    func_param: HashMap<String, usize>,
 }
 
 impl<'a> CodeGen<'a> {
@@ -235,6 +242,7 @@ impl<'a> CodeGen<'a> {
         Self {
             program,
             frame: Frame::new(),
+            func_param: HashMap::new(),
         }
     }
 
@@ -244,7 +252,9 @@ impl<'a> CodeGen<'a> {
         let Program(func_defs) = self.program;
 
         for func_def in func_defs {
-            has_main = func_def.name.name == "main";
+            let name = func_def.name.name.to_owned();
+            has_main = name == "main";
+            self.func_param.insert(name, func_def.params.len());
             instrs.extend(self.gen_func_def(func_def)?);
         }
 
@@ -437,8 +447,43 @@ impl<'a> CodeGen<'a> {
                 instrs.extend(self.frame.unspill());
                 Ok(instrs)
             }
-            _ => {
-                todo!()
+            AtomExpr::Call(Id { st, name }, exprs) => {
+                // check name in scope to see if function exist
+                let param_len = exprs.len();
+                if !self.func_param.contains_key(name) {
+                    Err(CGError::undefined_function(st))
+                } else if self.func_param[name] != param_len {
+                    Err(CGError::too_many_param(st))
+                } else {
+                    let mut instrs = Vec::new();
+
+                    // caution: nested call could overwrite the a register, so we need to spill function parameter register
+                    // ex: in (f(a, b(c))) , b could overwrite the a0 reg.
+                    let param_regs = &([
+                        Reg::A0,
+                        Reg::A1,
+                        Reg::A2,
+                        Reg::A3,
+                        Reg::A4,
+                        Reg::A5,
+                        Reg::A6,
+                        Reg::A7,
+                    ])[0..param_len];
+
+                    self.frame.spill(param_regs.to_vec());
+
+                    // evaluate expr and put them into a0 - a7
+                    for expr in exprs {
+                        // safe to unwrap here because the number of exprs is exactly equal to that of the function parameter
+                        instrs.extend(
+                            self.gen_expr(expr, param_regs.iter().next().unwrap().clone())?,
+                        );
+                    }
+                    instrs.push(Instr::Call(name.clone()));
+                    self.frame.unspill();
+
+                    Ok(instrs)
+                }
             }
         }
     }
@@ -661,6 +706,28 @@ mod test {
             None,
         );
         assert_cg_expr(expected_instrs, &expr);
+    }
+
+    // Input: foo()
+    #[test]
+    fn gen_call_with_no_def() {
+        let expr = CompExpr(
+            ArithExpr(
+                AtomExpr::Call(
+                    Id {
+                        st: SyntaxToken::default(),
+                        name: String::from("foo"),
+                    },
+                    vec![],
+                ),
+                vec![],
+            ),
+            None,
+        );
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let err = cg.gen_expr(&expr, Reg::A0).unwrap_err();
+        assert!(matches!(err, CGError::UndefinedFunction(..)));
     }
 
     // Input: let a: int := 5 ;

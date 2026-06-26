@@ -1,0 +1,10 @@
+{
+  "name": "riscv-compiler",
+  "image": "rust:latest",
+  "postCreateCommand": "apt-get update && apt-get install -y binutils-riscv64-linux-gnu qemu-user",
+  "customizations": {
+    "vscode": {
+      "extensions": ["rust-lang.rust-analyzer"]
+    }
+  }
+}
