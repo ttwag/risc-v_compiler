@@ -468,19 +468,18 @@ impl<'a> CodeGen<'a> {
                         Reg::A5,
                         Reg::A6,
                         Reg::A7,
-                    ])[0..param_len];
+                    ])[0..param_len]; //only spill the used A regs
 
-                    self.frame.spill(param_regs.to_vec());
+                    instrs.extend(self.frame.spill(param_regs.to_vec()));
 
                     // evaluate expr and put them into a0 - a7
-                    for expr in exprs {
-                        // safe to unwrap here because the number of exprs is exactly equal to that of the function parameter
+                    for (expr, reg) in exprs.iter().zip(param_regs.iter()) {
                         instrs.extend(
-                            self.gen_expr(expr, param_regs.iter().next().unwrap().clone())?,
+                            self.gen_expr(expr, reg.clone())?,
                         );
                     }
                     instrs.push(Instr::Call(name.clone()));
-                    self.frame.unspill();
+                    instrs.extend(self.frame.unspill());
 
                     Ok(instrs)
                 }
