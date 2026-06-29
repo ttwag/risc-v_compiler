@@ -9,7 +9,7 @@ use std::vec;
 use std::{collections::HashMap, fmt::Display};
 
 #[derive(Debug)]
-enum CGError {
+pub enum CGError {
     UndefinedVariable(SyntaxToken),
     UndefinedFunction(SyntaxToken),
     VarRedefinition(SyntaxToken),
@@ -87,7 +87,7 @@ impl Display for Reg {
 }
 
 #[derive(Debug)]
-enum Instr {
+pub enum Instr {
     // arithmetic
     Add(Reg, Reg, Reg),  // add rd, rs1, rs2
     Sub(Reg, Reg, Reg),  // sub rd, rs1, rs2
@@ -231,14 +231,14 @@ impl Frame {
     }
 }
 
-struct CodeGen<'a> {
+pub struct CodeGen<'a> {
     program: &'a Program,
     frame: Frame,
     func_param: HashMap<String, usize>,
 }
 
 impl<'a> CodeGen<'a> {
-    fn new(program: &'a Program) -> Self {
+    pub fn new(program: &'a Program) -> Self {
         Self {
             program,
             frame: Frame::new(),
@@ -246,7 +246,7 @@ impl<'a> CodeGen<'a> {
         }
     }
 
-    fn gen_program(&mut self) -> Result<Vec<Instr>, CGError> {
+    pub fn gen_program(&mut self) -> Result<Vec<Instr>, CGError> {
         let mut instrs = Vec::new();
         let mut has_main = false;
         let Program(func_defs) = self.program;
@@ -280,6 +280,7 @@ impl<'a> CodeGen<'a> {
             .map(|i| i.to_string())
             .collect::<Vec<_>>()
             .join("\n")
+            + "\n"
     }
 
     fn gen_func_def(&mut self, func_def: &FuncDef) -> Result<Vec<Instr>, CGError> {
@@ -504,8 +505,10 @@ mod test {
         assert_eq!(expected_instrs, instrs);
     }
 
+    // prepend 4 spaces to the first line and swap all newline with newline + 4 spaces
+    // append a newline at the end
     fn format_instr_not_in_func(instrs: &str) -> String {
-        format!("    {}", instrs.replace('\n', "\n    "))
+        format!("    {}\n", instrs.replace('\n', "\n    "))
     }
 
     // ── Expr ───────────────────────────────────────────────────────────────
@@ -945,7 +948,8 @@ mod test {
                 lw ra, -8(s0)
                 lw s0, -4(s0)
                 addi sp, sp, 16
-                ret"};
+                ret
+        "}; //note that we need the extra newline at the end when it's a complete function
         let func_def = FuncDef {
             name: Id {
                 st: SyntaxToken::default(),
@@ -990,7 +994,8 @@ mod test {
                 lw ra, -8(s0)
                 lw s0, -4(s0)
                 addi sp, sp, 16
-                ret"};
+                ret
+        "};
         let program = Program(vec![FuncDef {
             name: Id {
                 st: SyntaxToken::default(),
