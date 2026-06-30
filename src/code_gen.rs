@@ -1,9 +1,8 @@
 use crate::ast::{
     ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, FuncDef, Id, Param, Program, ReturnStmt,
-    Stmt, Type,
+    Stmt,
 };
-use crate::code_gen::CGError::TooManyParam;
-use crate::token::{Location, SyntaxToken};
+use crate::token::SyntaxToken;
 use core::fmt;
 use std::vec;
 use std::{collections::HashMap, fmt::Display};
@@ -36,7 +35,7 @@ impl CGError {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-enum Reg {
+pub enum Reg {
     // stack pointer
     Sp,
     // frame pointer
@@ -79,9 +78,6 @@ impl Display for Reg {
             Reg::Sp => write!(f, "sp"),
             Reg::S0 => write!(f, "s0"),
             Reg::Ra => write!(f, "ra"),
-            _ => {
-                todo!()
-            }
         }
     }
 }
@@ -351,13 +347,6 @@ impl<'a> CodeGen<'a> {
         Ok(instrs)
     }
 
-    fn gen_return_stmt(&mut self, ReturnStmt(expr): &ReturnStmt) -> Result<Vec<Instr>, CGError> {
-        let mut instrs = Vec::new();
-        instrs.extend(self.gen_expr(expr, Reg::A0)?);
-        instrs.push(Instr::Ret);
-        Ok(instrs)
-    }
-
     fn gen_stmt(&mut self, stmt: &Stmt) -> Result<Vec<Instr>, CGError> {
         match stmt {
             Stmt::Let(id, _var_type, expr) => {
@@ -474,9 +463,7 @@ impl<'a> CodeGen<'a> {
 
                     // evaluate expr and put them into a0 - a7
                     for (expr, reg) in exprs.iter().zip(param_regs.iter()) {
-                        instrs.extend(
-                            self.gen_expr(expr, reg.clone())?,
-                        );
+                        instrs.extend(self.gen_expr(expr, reg.clone())?);
                     }
                     instrs.push(Instr::Call(name.clone()));
                     instrs.extend(Instr::gen_mv(Reg::T2, Reg::A0));
@@ -804,28 +791,6 @@ mod test {
         let mut cg = CodeGen::new(&program);
         let err = cg.gen_stmt(&stmt).unwrap_err();
         assert!(matches!(err, CGError::UndefinedVariable(..)));
-    }
-
-    // Input: return 5;
-    #[test]
-    fn gen_return_stmt() {
-        let expected = format_instr_not_in_func(indoc! {"
-            li a0, 5
-            ret"});
-        let stmt = ReturnStmt(CompExpr(
-            ArithExpr(
-                AtomExpr::Num(Num {
-                    st: SyntaxToken::default(),
-                    name: String::from("5"),
-                }),
-                vec![],
-            ),
-            None,
-        ));
-        let program = Program::default();
-        let mut cg = CodeGen::new(&program);
-        let instrs = CodeGen::gen_code(cg.gen_return_stmt(&stmt).unwrap());
-        assert_eq!(expected, instrs);
     }
 
     // Input: (a: int, b: int)
