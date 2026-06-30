@@ -479,7 +479,7 @@ impl<'a> CodeGen<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ast::Num;
+    use crate::ast::{Num, Type};
     use crate::token::SyntaxToken;
     use indoc::indoc;
     use pretty_assertions::assert_eq;
@@ -825,10 +825,6 @@ mod test {
     // Input: (a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int, i: int)
     #[test]
     fn gen_params_with_too_many_param() {
-        let expected_instrs = indoc! {"
-            sw a0, 0(s0)
-            sw a1, -4(s0)"};
-
         let param = vec![
             Param(
                 Id {
