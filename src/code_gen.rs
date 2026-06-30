@@ -457,7 +457,6 @@ impl<'a> CodeGen<'a> {
                     Err(CGError::too_many_param(st))
                 } else {
                     let mut instrs = Vec::new();
-
                     // caution: nested call could overwrite the a register, so we need to spill function parameter register
                     // ex: in (f(a, b(c))) , b could overwrite the a0 reg.
                     let param_regs = &([
@@ -480,8 +479,9 @@ impl<'a> CodeGen<'a> {
                         );
                     }
                     instrs.push(Instr::Call(name.clone()));
+                    instrs.extend(Instr::gen_mv(Reg::T2, Reg::A0));
                     instrs.extend(self.frame.unspill());
-
+                    instrs.extend(Instr::gen_mv(dst, Reg::T2));
                     Ok(instrs)
                 }
             }
