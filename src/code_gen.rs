@@ -230,7 +230,7 @@ impl Frame {
 pub struct CodeGen<'a> {
     program: &'a Program,
     frame: Frame,
-    func_param: HashMap<String, usize>,
+    func_arity: HashMap<String, usize>,
 }
 
 impl<'a> CodeGen<'a> {
@@ -238,7 +238,7 @@ impl<'a> CodeGen<'a> {
         Self {
             program,
             frame: Frame::new(),
-            func_param: HashMap::new(),
+            func_arity: HashMap::new(),
         }
     }
 
@@ -250,7 +250,7 @@ impl<'a> CodeGen<'a> {
         for func_def in func_defs {
             let name = func_def.name.name.to_owned();
             has_main = name == "main";
-            self.func_param.insert(name, func_def.params.len());
+            self.func_arity.insert(name, func_def.params.len());
             instrs.extend(self.gen_func_def(func_def)?);
         }
 
@@ -366,6 +366,9 @@ impl<'a> CodeGen<'a> {
                 instrs.push(Instr::Sw(src, offset, Reg::S0));
                 Ok(instrs)
             }
+            Stmt::If(if_branch, elif_branches , else_branch ) {
+
+            }
             _ => {
                 todo!()
             }
@@ -440,9 +443,9 @@ impl<'a> CodeGen<'a> {
             AtomExpr::Call(Id { st, name }, exprs) => {
                 // check name in scope to see if function exist
                 let param_len = exprs.len();
-                if !self.func_param.contains_key(name) {
+                if !self.func_arity.contains_key(name) {
                     Err(CGError::undefined_function(st))
-                } else if self.func_param[name] != param_len {
+                } else if self.func_arity[name] != param_len {
                     Err(CGError::too_many_param(st))
                 } else {
                     let mut instrs = Vec::new();
