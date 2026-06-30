@@ -158,7 +158,7 @@ impl Display for Instr {
 
 struct Frame {
     spill_stack: Vec<Vec<(Reg, i32)>>,
-    locals: HashMap<String, i32>,
+    locals: Vec<HashMap<String, i32>>,
     frame_offset: i32,
 }
 
@@ -167,7 +167,7 @@ impl Frame {
     fn new() -> Self {
         Self {
             spill_stack: vec![],
-            locals: HashMap::new(),
+            locals: vec![HashMap::new()],
             frame_offset: 0,
         }
     }
@@ -203,22 +203,31 @@ impl Frame {
 
     fn define_local(&mut self, id: &Id, src: Reg) -> Result<Instr, CGError> {
         let var = &id.name;
-        if self.locals.contains_key(var) {
+        if self
+            .locals
+            .last()
+            .expect("locals stack should never be empty")
+            .contains_key(var)
+        {
             Err(CGError::var_redefinition(&id.st))
         } else {
             let offset = self.alloc_slot();
-            self.locals.insert(var.to_owned(), offset);
+            self.locals
+                .last_mut()
+                .expect("locals stack should never be empty")
+                .insert(var.to_owned(), offset);
             Ok(Instr::Sw(src, self.frame_offset, Reg::S0))
         }
     }
 
     fn get_local_offset(&self, id: &Id) -> Result<i32, CGError> {
         let var = &id.name;
-        if let Some(&offset) = self.locals.get(var) {
-            Ok(offset)
-        } else {
-            Err(CGError::undefined_variable(&id.st))
+        for local in self.locals.iter().rev() {
+            if let Some(&offset) = local.get(var) {
+                return Ok(offset);
+            }
         }
+        Err(CGError::undefined_variable(&id.st))
     }
 
     fn load_local(&self, id: &Id, dst: Reg) -> Result<Instr, CGError> {
