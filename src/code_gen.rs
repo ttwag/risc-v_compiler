@@ -167,7 +167,7 @@ impl Frame {
     fn new() -> Self {
         Self {
             spill_stack: vec![],
-            locals: vec![HashMap::new()],
+            locals: vec![],
             frame_offset: 0,
         }
     }
@@ -234,6 +234,16 @@ impl Frame {
         let offset = self.get_local_offset(id)?;
         Ok(Instr::Lw(dst, offset, Reg::S0))
     }
+
+    fn push_local_scope(&mut self) {
+        self.locals.push(HashMap::new());
+    }
+
+    fn pop_local_scope(&mut self) {
+        self.locals.pop();
+    }
+}
+
 }
 
 pub struct CodeGen<'a> {
@@ -304,11 +314,13 @@ impl<'a> CodeGen<'a> {
         let ra_offset = self.frame.alloc_slot();
 
         // code generation
+        self.frame.push_local_scope();
         instrs.extend(self.gen_params(params)?);
         for stmt in body {
             instrs.extend(self.gen_stmt(stmt)?);
         }
         instrs.extend(self.gen_expr(return_expr, Reg::A0)?);
+        self.frame.pop_local_scope();
 
         // code for entering and exiting the function
         let frame_size = (((-self.frame.frame_offset as usize) + 15) & !15) as i32; // frame size must be 16 byte-aligned
@@ -382,6 +394,18 @@ impl<'a> CodeGen<'a> {
                 todo!()
             }
         }
+    }
+
+
+    fn gen_body(&mut self, body: &Vec<Stmt>) -> Result<Vec<Instr>, CGError> {
+        let mut instrs = Vec::new();
+        self.frame.push_local_scope();
+        for stmt in body {
+            instrs.extend(self.gen_stmt(stmt)?);
+        }
+        self.frame.pop_local_scope();
+
+        Ok(instrs)
     }
 
     fn gen_expr(&mut self, expr: &Expr, dst: Reg) -> Result<Vec<Instr>, CGError> {
@@ -757,6 +781,7 @@ mod test {
         );
         let program = Program::default();
         let mut cg = CodeGen::new(&program);
+        cg.frame.push_local_scope();
         let instrs = CodeGen::gen_code(cg.gen_stmt(&stmt).unwrap());
         assert_eq!(expected_instrs, instrs);
     }
@@ -830,6 +855,7 @@ mod test {
         ];
         let program = Program::default();
         let mut cg = CodeGen::new(&program);
+        cg.frame.push_local_scope();
         let instrs = CodeGen::gen_code(cg.gen_params(&param).unwrap());
         assert_eq!(expected_instrs, instrs);
     }
@@ -904,6 +930,7 @@ mod test {
         ];
         let program = Program::default();
         let mut cg = CodeGen::new(&program);
+        cg.frame.push_local_scope();
         let err = cg.gen_params(&param).unwrap_err();
         assert!(matches!(err, CGError::TooManyParam(..)));
     }
