@@ -1,6 +1,6 @@
 use crate::ast::{
-    ArithExpr, ArithOp, AtomExpr, CompExpr, CompOp, Expr, FuncDef, Id, Param, Program, ReturnStmt,
-    Stmt,
+    ArithExpr, ArithOp, AtomExpr, Branch, CompExpr, CompOp, Expr, FuncDef, Id, Param, Program,
+    ReturnStmt, Stmt,
 };
 use crate::token::SyntaxToken;
 use core::fmt;
@@ -105,9 +105,12 @@ pub enum Instr {
 
     // branch
     Bge(Reg, Reg, String), //bge rs1, rs2, label
-
+    // branch if <= 0
+    Blez(Reg, String), //blez rs1, label
     // jump and link register
     Jalr(Reg, Reg, i32), //jalr rd, rs1, imm
+    // jump to label
+    J(String), //jal x0, label
 
     // return (jalr x0, ra, 0)
     Ret,
@@ -144,6 +147,8 @@ impl Display for Instr {
             Instr::Slt(rd, rs1, rs2) => write!(f, "{}slt {}, {}, {}", INDENT, rd, rs1, rs2),
             Instr::Xor(rd, rs1, rs2) => write!(f, "{}xor {}, {}, {}", INDENT, rd, rs1, rs2),
             Instr::Seqz(rd, rs1)           => write!(f, "{}seqz {}, {}", INDENT, rd, rs1),
+            Instr::Blez(rs1, label)     => write!(f, "{}blez {}, {}", INDENT, rs1, label),
+            Instr::J(label)                   => write!(f, "{}j {}", INDENT, label),
             Instr::Sw(rs2, offset, rs1) => write!(f, "{}sw {}, {}({})", INDENT, rs2, offset, rs1),
             Instr::Lw(rd, offset, rs1) => write!(f, "{}lw {}, {}({})", INDENT, rd, offset, rs1),
             Instr::Ret => write!(f, "{}ret", INDENT),
@@ -246,12 +251,17 @@ impl Frame {
     }
 }
 
+enum LabeledBranch<'a> {
+    If(String, String, &'a Expr, &'a Vec<Stmt>), // cond_label, jump_label, cond, body
+    Elif(String, String, String, &'a Expr, &'a Vec<Stmt>), // body_label, cond_label, jump_label, cond, body
+    Else(String, &'a Vec<Stmt>),                           // body_label, body
 }
 
 pub struct CodeGen<'a> {
     program: &'a Program,
     frame: Frame,
     func_arity: HashMap<String, usize>,
+    label_counter: usize,
 }
 
 impl<'a> CodeGen<'a> {
@@ -260,6 +270,7 @@ impl<'a> CodeGen<'a> {
             program,
             frame: Frame::new(),
             func_arity: HashMap::new(),
+            label_counter: 0,
         }
     }
 
@@ -392,8 +403,58 @@ impl<'a> CodeGen<'a> {
                 instrs.push(Instr::Sw(src, offset, Reg::S0));
                 Ok(instrs)
             }
-            Stmt::If(if_branch, elif_branches , else_branch ) {
+            Stmt::If(Branch(if_expr, if_stmts), elif_branches, else_branch) => {
+                let mut instrs = Vec::new();
+                let jump_label = format!("if_end_{}", self.inc_label_counter());
 
+                // generate all labels for elif and else
+                let mut cond_labels: Vec<String> = (0..elif_branches.len())
+                    .map(|_| format!("elif_{}", self.inc_label_counter()))
+                    .collect();
+                if else_branch.is_some() {
+                    cond_labels.push(format!("else_{}", self.inc_label_counter()))
+                }
+                let else_label = cond_labels.last().cloned();
+                cond_labels.push(jump_label.clone());
+
+                // labeled the conditions and bodies of if, elif, else with the generated labels
+                let mut labeled_branches = Vec::new();
+                let mut body_label;
+                let mut cond_label_iter = cond_labels.iter();
+                let mut cond_label = cond_label_iter.next().unwrap_or(&jump_label);
+                labeled_branches.push(LabeledBranch::If(
+                    cond_label.clone(),
+                    jump_label.clone(),
+                    if_expr,
+                    if_stmts,
+                ));
+                for Branch(elif_expr, elif_stmts) in elif_branches {
+                    body_label = cond_label.clone();
+                    cond_label = cond_label_iter.next().unwrap_or(&jump_label);
+                    labeled_branches.push(LabeledBranch::Elif(
+                        body_label,
+                        cond_label.clone(),
+                        jump_label.clone(),
+                        elif_expr,
+                        elif_stmts,
+                    ));
+                }
+                if let Some(body) = else_branch {
+                    labeled_branches.push(LabeledBranch::Else(
+                        else_label.expect("Else label should match else branch"),
+                        body,
+                    ));
+                }
+
+                // generate actual branch code
+                for branch_label in labeled_branches {
+                    instrs.extend(self.gen_branch(&branch_label)?);
+                }
+
+                // generate label for code after branch
+                instrs.push(Instr::Label(jump_label));
+
+                Ok(instrs)
             }
             _ => {
                 todo!()
@@ -401,6 +462,31 @@ impl<'a> CodeGen<'a> {
         }
     }
 
+    fn gen_branch(&mut self, branch_label: &LabeledBranch) -> Result<Vec<Instr>, CGError> {
+        let mut instrs = Vec::new();
+        let cond_reg = Reg::T0;
+        match branch_label {
+            LabeledBranch::If(cond_label, jump_label, cond, body) => {
+                instrs.extend(self.gen_expr(cond, cond_reg)?);
+                instrs.push(Instr::Blez(cond_reg, cond_label.clone()));
+                instrs.extend(self.gen_body(body)?);
+                instrs.push(Instr::J(jump_label.clone()));
+            }
+            LabeledBranch::Elif(body_label, cond_label, jump_label, cond, body) => {
+                instrs.push(Instr::Label(body_label.clone()));
+                instrs.extend(self.gen_expr(cond, cond_reg)?);
+                instrs.push(Instr::Blez(cond_reg, cond_label.clone()));
+                instrs.extend(self.gen_body(body)?);
+                instrs.push(Instr::J(jump_label.clone()));
+            }
+            LabeledBranch::Else(body_label, body) => {
+                instrs.push(Instr::Label(body_label.clone()));
+                instrs.extend(self.gen_body(body)?);
+            }
+        }
+
+        Ok(instrs)
+    }
 
     fn gen_body(&mut self, body: &Vec<Stmt>) -> Result<Vec<Instr>, CGError> {
         let mut instrs = Vec::new();
@@ -518,6 +604,12 @@ impl<'a> CodeGen<'a> {
                 }
             }
         }
+    }
+
+    fn inc_label_counter(&mut self) -> usize {
+        let cnt = self.label_counter;
+        self.label_counter += 1;
+        cnt
     }
 }
 
@@ -837,6 +929,269 @@ mod test {
         let mut cg = CodeGen::new(&program);
         let err = cg.gen_stmt(&stmt).unwrap_err();
         assert!(matches!(err, CGError::UndefinedVariable(..)));
+    }
+    #[test]
+    // Input: if (5 > 4) {}
+    fn gen_if_only_stmt() {
+        let expected_instrs = indoc! {"
+            li t0, 5
+            li t1, 4
+            slt t0, t1, t0
+            blez t0, if_end_0
+            j if_end_0
+        if_end_0:
+        "};
+        let stmt = Stmt::If(
+            Branch(
+                CompExpr(
+                    ArithExpr(
+                        AtomExpr::Num(Num {
+                            st: SyntaxToken::default(),
+                            name: "5".to_string(),
+                        }),
+                        vec![],
+                    ),
+                    Some((
+                        CompOp::Grt,
+                        ArithExpr(
+                            AtomExpr::Num(Num {
+                                st: SyntaxToken::default(),
+                                name: "4".to_string(),
+                            }),
+                            vec![],
+                        ),
+                    )),
+                ),
+                vec![],
+            ),
+            vec![], // no elif
+            None,   // no else
+        );
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let instrs = CodeGen::gen_code(cg.gen_stmt(&stmt).unwrap());
+        assert_eq!(expected_instrs, instrs);
+    }
+
+    #[test]
+    // Input: if (5 > 4) {} elif (4 > 5) {}
+    fn gen_if_elif_stmt() {
+        let expected_instrs = indoc! {"
+        li t0, 5
+        li t1, 4
+        slt t0, t1, t0
+        blez t0, elif_1
+        j if_end_0
+    elif_1:
+        li t0, 4
+        li t1, 5
+        slt t0, t1, t0
+        blez t0, if_end_0
+        j if_end_0
+    if_end_0:
+    "};
+        let stmt = Stmt::If(
+            Branch(
+                CompExpr(
+                    ArithExpr(
+                        AtomExpr::Num(Num {
+                            st: SyntaxToken::default(),
+                            name: "5".to_string(),
+                        }),
+                        vec![],
+                    ),
+                    Some((
+                        CompOp::Grt,
+                        ArithExpr(
+                            AtomExpr::Num(Num {
+                                st: SyntaxToken::default(),
+                                name: "4".to_string(),
+                            }),
+                            vec![],
+                        ),
+                    )),
+                ),
+                vec![],
+            ),
+            vec![Branch(
+                CompExpr(
+                    ArithExpr(
+                        AtomExpr::Num(Num {
+                            st: SyntaxToken::default(),
+                            name: "4".to_string(),
+                        }),
+                        vec![],
+                    ),
+                    Some((
+                        CompOp::Grt,
+                        ArithExpr(
+                            AtomExpr::Num(Num {
+                                st: SyntaxToken::default(),
+                                name: "5".to_string(),
+                            }),
+                            vec![],
+                        ),
+                    )),
+                ),
+                vec![],
+            )],
+            None, // no else
+        );
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let instrs = CodeGen::gen_code(cg.gen_stmt(&stmt).unwrap());
+        assert_eq!(expected_instrs, instrs);
+    }
+
+    #[test]
+    // Input: if (5 > 4) {} else {}
+    fn gen_if_else_stmt() {
+        let expected_instrs = indoc! {"
+        li t0, 5
+        li t1, 4
+        slt t0, t1, t0
+        blez t0, else_1
+        j if_end_0
+    else_1:
+    if_end_0:
+    "};
+        let stmt = Stmt::If(
+            Branch(
+                CompExpr(
+                    ArithExpr(
+                        AtomExpr::Num(Num {
+                            st: SyntaxToken::default(),
+                            name: "5".to_string(),
+                        }),
+                        vec![],
+                    ),
+                    Some((
+                        CompOp::Grt,
+                        ArithExpr(
+                            AtomExpr::Num(Num {
+                                st: SyntaxToken::default(),
+                                name: "4".to_string(),
+                            }),
+                            vec![],
+                        ),
+                    )),
+                ),
+                vec![],
+            ),
+            vec![],       // no elif
+            Some(vec![]), // else {}
+        );
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let instrs = CodeGen::gen_code(cg.gen_stmt(&stmt).unwrap());
+        assert_eq!(expected_instrs, instrs);
+    }
+
+    #[test]
+    // Input: if (5 > 4) { } elif (4 > 5) {} elif (4 == 5) else {}
+    fn gen_branch_stmt() {
+        let expected_instrs = indoc! {"
+            li t0, 5
+            li t1, 4
+            slt t0, t1, t0
+            blez t0, elif_1
+            j if_end_0
+        elif_1:
+            li t0, 4
+            li t1, 5
+            slt t0, t1, t0
+            blez t0, elif_2
+            j if_end_0
+        elif_2:
+            li t0, 4
+            li t1, 5
+            xor t0, t0, t1
+            seqz t0, t0
+            blez t0, else_3
+            j if_end_0
+        else_3:
+        if_end_0:
+        "};
+        let stmt = Stmt::If(
+            // if (5 > 4) {}
+            Branch(
+                CompExpr(
+                    ArithExpr(
+                        AtomExpr::Num(Num {
+                            st: SyntaxToken::default(),
+                            name: "5".to_string(),
+                        }),
+                        vec![],
+                    ),
+                    Some((
+                        CompOp::Grt,
+                        ArithExpr(
+                            AtomExpr::Num(Num {
+                                st: SyntaxToken::default(),
+                                name: "4".to_string(),
+                            }),
+                            vec![],
+                        ),
+                    )),
+                ),
+                vec![], // empty body
+            ),
+            // elif branches
+            vec![
+                // elif (4 > 5) {}
+                Branch(
+                    CompExpr(
+                        ArithExpr(
+                            AtomExpr::Num(Num {
+                                st: SyntaxToken::default(),
+                                name: "4".to_string(),
+                            }),
+                            vec![],
+                        ),
+                        Some((
+                            CompOp::Grt,
+                            ArithExpr(
+                                AtomExpr::Num(Num {
+                                    st: SyntaxToken::default(),
+                                    name: "5".to_string(),
+                                }),
+                                vec![],
+                            ),
+                        )),
+                    ),
+                    vec![],
+                ),
+                // elif (4 == 5) {}
+                Branch(
+                    CompExpr(
+                        ArithExpr(
+                            AtomExpr::Num(Num {
+                                st: SyntaxToken::default(),
+                                name: "4".to_string(),
+                            }),
+                            vec![],
+                        ),
+                        Some((
+                            CompOp::Equality,
+                            ArithExpr(
+                                AtomExpr::Num(Num {
+                                    st: SyntaxToken::default(),
+                                    name: "5".to_string(),
+                                }),
+                                vec![],
+                            ),
+                        )),
+                    ),
+                    vec![],
+                ),
+            ],
+            // else {}
+            Some(vec![]),
+        );
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let instrs = CodeGen::gen_code(cg.gen_stmt(&stmt).unwrap());
+        assert_eq!(expected_instrs, instrs);
     }
 
     // Input: (a: int, b: int)
