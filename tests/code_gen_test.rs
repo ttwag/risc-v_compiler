@@ -52,10 +52,12 @@ fn compile_and_run(input: &str) -> (i32, String) {
 
 #[track_caller]
 fn assert_asm_result(expected: i32, input: &str) {
+    assert!(expected >= 0);
+    assert!(expected <= 255);
     let (result, asm) = compile_and_run(input);
     if expected != result {
         panic!(
-            "\nError! Result DON'T MATCH:\nExpected result: {expected}\nComputed Result: {result}\n--- assembly ---\n{asm}"
+            "\nError! Result DON'T MATCH:\nExpected Result: {expected}\nComputed Result: {result}\n--- assembly ---\n{asm}"
         );
     }
 }
@@ -238,5 +240,109 @@ fn gen_sub_inverse() {
     }
     "};
     let expected = 1;
+    assert_asm_result(expected, input);
+}
+
+#[test]
+#[serial]
+fn gen_is_under_3() {
+    let input = indoc! {"
+    fn grt_or_equal( a : int, b : int) -> int {
+        let result: int := 0;
+        if (a == b) { result := 1; }
+        elif (a > b) { result := 1; }
+        return result;
+    }
+    fn main ( ) -> int {
+        return grt_or_equal(102, 102);
+    }
+    "};
+    let expected = 1;
+    assert_asm_result(expected, input);
+}
+
+#[test]
+#[serial]
+fn gen_max_two_param() {
+    let input = indoc! {"
+    fn max ( a : int, b : int) -> int {
+        let result: int := 0;
+        if (a > b) {result := a; }
+        else {result := b; }
+        return result;
+    }
+    fn main ( ) -> int {
+        return max(102, 8);
+    }
+    "};
+    let expected = 102;
+    assert_asm_result(expected, input);
+}
+
+#[test]
+#[serial]
+fn gen_max_three_param() {
+    let input = indoc! {"
+    fn max ( a : int, b : int, c: int) -> int {
+        let result: int := 0;
+        if (a > b) {
+            if (a > c) { result := a; }
+            else { result := c; }
+        }
+        else {
+            if (b > c) { result := b; }
+            else { result := c; }
+        }
+        return result;
+    }
+    fn main ( ) -> int {
+        return max(102, 8, 150);
+    }
+    "};
+    let expected = 150;
+    assert_asm_result(expected, input);
+}
+
+#[test]
+#[serial]
+fn gen_less_than() {
+    let input = indoc! {"
+    fn less_than ( a : int, b : int ) -> int {
+        let result: int := 0;
+        if (b > a) {
+            result := 1;
+        }
+        return result;
+    }
+    fn main ( ) -> int {
+        return less_than(1, 0);
+    }
+    "};
+    let expected = 0;
+    assert_asm_result(expected, input);
+}
+
+#[test]
+#[serial]
+fn gen_fib_10() {
+    let input = indoc! {"
+    fn fib ( n : int ) -> int {
+        let result : int := 0 ;
+        if ( n == 0 ) {
+            result := 0 ;
+        }
+        elif ( n == 1 ) {
+            result := 1 ;
+        }
+        else {
+            result := fib ( n - 1 ) + fib ( n - 2 ) ;
+        }
+        return result ;
+    }
+    fn main ( ) -> int {
+        return fib(10);
+    }
+    "};
+    let expected = 55;
     assert_asm_result(expected, input);
 }
