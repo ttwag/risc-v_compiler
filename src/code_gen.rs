@@ -456,8 +456,20 @@ impl<'a> CodeGen<'a> {
 
                 Ok(instrs)
             }
-            _ => {
-                todo!()
+            Stmt::While(Branch(cond, body)) => {
+                let mut instrs = Vec::new();
+                let label_num = self.inc_label_counter();
+                let start_label = format!("while_start_{}", label_num);
+                let end_label = format!("while_end_{}", label_num);
+                
+                instrs.push(Instr::Label(start_label.clone()));
+                instrs.extend(self.gen_expr(cond, Reg::T0)?);
+                instrs.push(Instr::Blez(Reg::T0, end_label.clone()));
+                instrs.extend(self.gen_body(body)?);
+                instrs.push(Instr::J(start_label));
+                instrs.push(Instr::Label(end_label));
+                
+                Ok(instrs)
             }
         }
     }
@@ -1188,6 +1200,48 @@ mod test {
             // else {}
             Some(vec![]),
         );
+        let program = Program::default();
+        let mut cg = CodeGen::new(&program);
+        let instrs = CodeGen::gen_code(cg.gen_stmt(&stmt).unwrap());
+        assert_eq!(expected_instrs, instrs);
+    }
+
+    // Input: while (1 < 5) {}
+    #[test]
+    fn gen_while_simple_condition() {
+        let expected_instrs = indoc! {"
+        while_start_0:
+            li t0, 5
+            li t1, 1
+            slt t0, t1, t0
+            blez t0, while_end_0
+            j while_start_0
+        while_end_0:
+        "};
+
+        let stmt = Stmt::While(Branch(
+            CompExpr(
+                ArithExpr(
+                    AtomExpr::Num(Num {
+                        st: SyntaxToken::default(),
+                        name: String::from("5"),
+                    }),
+                    vec![],
+                ),
+                Some((
+                    CompOp::Grt,
+                    ArithExpr(
+                        AtomExpr::Num(Num {
+                            st: SyntaxToken::default(),
+                            name: String::from("1"),
+                        }),
+                        vec![],
+                    ),
+                )),
+            ),
+            vec![],
+        ));
+
         let program = Program::default();
         let mut cg = CodeGen::new(&program);
         let instrs = CodeGen::gen_code(cg.gen_stmt(&stmt).unwrap());
