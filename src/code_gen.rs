@@ -40,6 +40,7 @@ pub enum Reg {
     Sp,
     // frame pointer
     S0,
+    S1,
     // return value
     A0,
     // return address
@@ -77,6 +78,7 @@ impl Display for Reg {
             Reg::T2 => write!(f, "t2"),
             Reg::Sp => write!(f, "sp"),
             Reg::S0 => write!(f, "s0"),
+            Reg::S1 => write!(f, "s1"),
             Reg::Ra => write!(f, "ra"),
         }
     }
@@ -309,8 +311,9 @@ impl<'a> CodeGen<'a> {
         let mut instrs = Vec::new();
         self.frame = Frame::new();
 
-        // ra (caller saved), s0 (callee saved)
+        // ra (caller saved), s0 (callee saved), s1 (callee saved)
         let s0_offset = self.frame.alloc_slot();
+        let s1_offset = self.frame.alloc_slot();
         let ra_offset = self.frame.alloc_slot();
 
         // code generation
@@ -329,11 +332,13 @@ impl<'a> CodeGen<'a> {
             Instr::Addi(Reg::Sp, Reg::Sp, -frame_size), // move Sp up to the frame size
             // sp-relative = frame_size + s0-relative
             Instr::Sw(Reg::Ra, frame_size + ra_offset, Reg::Sp), // save return address to frame
+            Instr::Sw(Reg::S1, frame_size + s1_offset, Reg::Sp),
             Instr::Sw(Reg::S0, frame_size + s0_offset, Reg::Sp), // save current S0 to frame
             Instr::Addi(Reg::S0, Reg::Sp, frame_size),           // put S0 at the base of the frame
         ];
         let epilogue = vec![
             Instr::Lw(Reg::Ra, ra_offset, Reg::S0), // load return address from frame to reg
+            Instr::Lw(Reg::S1, s1_offset, Reg::S0),
             Instr::Lw(Reg::S0, s0_offset, Reg::S0), // load s0 from frame to reg
             Instr::Addi(Reg::Sp, Reg::Sp, frame_size), // move sp back to base
             Instr::Ret,                             // return to return address
@@ -482,6 +487,10 @@ impl<'a> CodeGen<'a> {
                     Err(CGError::too_many_param(st))
                 } else {
                     let mut instrs = Vec::new();
+                    let mut spill_reg: Vec<Reg> = vec![Reg::T0, Reg::T1, Reg::T2]
+                        .into_iter()
+                        .filter(|&x| x != dst)
+                        .collect();
                     // caution: nested call could overwrite the a register, so we need to spill function parameter register
                     // ex: in (f(a, b(c))) , b could overwrite the a0 reg.
                     let param_regs = &([
@@ -494,17 +503,17 @@ impl<'a> CodeGen<'a> {
                         Reg::A6,
                         Reg::A7,
                     ])[0..param_len]; //only spill the used A regs
-
-                    instrs.extend(self.frame.spill(param_regs.to_vec()));
+                    spill_reg.extend(param_regs.to_vec());
+                    instrs.extend(self.frame.spill(spill_reg));
 
                     // evaluate expr and put them into a0 - a7
                     for (expr, reg) in exprs.iter().zip(param_regs.iter()) {
                         instrs.extend(self.gen_expr(expr, reg.clone())?);
                     }
                     instrs.push(Instr::Call(name.clone()));
-                    instrs.extend(Instr::gen_mv(Reg::T2, Reg::A0));
+                    instrs.extend(Instr::gen_mv(Reg::S1, Reg::A0));
                     instrs.extend(self.frame.unspill());
-                    instrs.extend(Instr::gen_mv(dst, Reg::T2));
+                    instrs.extend(Instr::gen_mv(dst, Reg::S1));
                     Ok(instrs)
                 }
             }
@@ -941,11 +950,13 @@ mod test {
         let expected_instrs = indoc! {"
             foo:
                 addi sp, sp, -16
-                sw ra, 8(sp)
+                sw ra, 4(sp)
+                sw s1, 8(sp)
                 sw s0, 12(sp)
                 addi s0, sp, 16
                 li a0, 0
-                lw ra, -8(s0)
+                lw ra, -12(s0)
+                lw s1, -8(s0)
                 lw s0, -4(s0)
                 addi sp, sp, 16
                 ret
@@ -987,11 +998,13 @@ mod test {
                 ecall
             main:
                 addi sp, sp, -16
-                sw ra, 8(sp)
+                sw ra, 4(sp)
+                sw s1, 8(sp)
                 sw s0, 12(sp)
                 addi s0, sp, 16
                 li a0, 100
-                lw ra, -8(s0)
+                lw ra, -12(s0)
+                lw s1, -8(s0)
                 lw s0, -4(s0)
                 addi sp, sp, 16
                 ret
