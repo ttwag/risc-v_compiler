@@ -346,3 +346,123 @@ fn gen_fib_10() {
     let expected = 55;
     assert_asm_result(expected, input);
 }
+
+#[test]
+#[serial]
+fn gen_while_mult_5() {
+    let input = indoc! {"
+    fn mult_5 ( n : int ) -> int {
+        let i: int := 0;
+        let result: int := 0;
+        while (n - i > 0) {
+            result := result + 5;
+            i := i + 1; 
+        }
+        return result;
+    }
+    fn main ( ) -> int {
+        let a: int := mult_5(6);
+        let b: int := mult_5(5);
+        let c: int := mult_5(9);
+        return a + b + c;
+    }
+    "};
+    let expected = 100;
+    assert_asm_result(expected, input);
+}
+
+#[test]
+#[serial]
+fn gen_mult() {
+    let input = indoc! {"
+    fn multiply ( n : int , m : int ) -> int {
+        let product : int := 0 ;
+        if ( m == 0 ) { product := 0 ; }
+        elif ( m > 0 ) {
+            if ( n > 0 ) { product := multiply ( n , m - 1 ) + n ; }
+            elif ( n == 0 ) { product := 0 ; }
+            else { product := multiply ( n , m - 1 ) - n ; }
+            }
+        else {
+            if ( n > 0 ) { product := multiply ( n , m + 1 ) - n ; }
+            elif ( n == 0 ) { product := 0 ; }
+            else { product := multiply ( n , m + 1 ) + n ; }
+        }
+        return product ;
+    }
+    fn main ( ) -> int {
+        let a: int := multiply(5, 3);
+        let b: int := multiply(5, 1);
+        let c: int := multiply(5, 0);
+        let d: int := multiply(35, 4);
+        return a + b + c + d;
+    }
+    "};
+    let expected = 160;
+    assert_asm_result(expected, input);
+}
+
+#[test]
+#[serial]
+fn gen_div() {
+    let input = indoc! {"
+    fn abs ( n : int ) -> int {
+        let result : int := 0 ;
+        if ( n > 0 ) { result := n ; }
+        else { result := 0 - n ; }
+        return result ;
+    }
+    fn divide ( n : int , m : int ) -> int {
+        let quotient : int := 0 ;
+        if ( abs ( m ) > abs ( n ) ) { quotient := 0 ; }
+        else {
+            if ( n > 0 ) {
+                if ( m > 0 ) { quotient := divide ( n - m , m ) + 1 ; }
+                else { quotient := divide ( n + m , m ) - 1 ; }
+            }
+            else {
+                if ( m > 0 ) { quotient := divide ( n + m , m ) - 1 ; }
+                else { quotient := divide ( n - m , m ) + 1 ; }
+            }
+        }
+        return  quotient ;
+    }
+
+    fn main ( ) -> int {
+        let a: int := divide(6, 3);
+        let b: int := divide(20, 4);
+        let c: int := divide(12, 3);
+        return a + b + c;
+    }
+    "};
+    let expected = 11;
+    assert_asm_result(expected, input);
+}
+
+#[test]
+#[serial]
+fn parse_mult_iter() {
+    let input = indoc! {"
+    fn multiply ( n : int , m : int ) -> int {
+        let result : int := 0 ;
+        let i: int := m;
+        while ( n > 0 ) {
+            while ( i > 0 ) {
+                result := result + 1 ;
+                i := i - 1 ;
+            }
+            i := m;
+            n := n - 1 ;
+        }
+        return result ;
+    }
+    fn main ( ) -> int {
+        let a: int := multiply(5, 3);
+        let b: int := multiply(5, 1);
+        let c: int := multiply(5, 0);
+        return a + b + c;
+    }
+    "};
+    let expected = 20;
+    assert_asm_result(expected, input);
+}
