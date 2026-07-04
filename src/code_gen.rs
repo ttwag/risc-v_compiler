@@ -16,21 +16,23 @@ pub enum CGError {
     UndefinedMain,
 }
 
-impl CGError {
-    pub fn undefined_variable(st: &SyntaxToken) -> Self {
-        Self::UndefinedVariable(st.clone())
-    }
-
-    pub fn undefined_function(st: &SyntaxToken) -> Self {
-        Self::UndefinedFunction(st.clone())
-    }
-
-    pub fn var_redefinition(st: &SyntaxToken) -> Self {
-        Self::VarRedefinition(st.clone())
-    }
-
-    pub fn too_many_param(st: &SyntaxToken) -> Self {
-        Self::TooManyParam(st.clone())
+impl fmt::Display for CGError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            CGError::UndefinedVariable(st) => {
+                write!(f, "Code Generation Error: Undefined Variable\n{st}")
+            }
+            CGError::UndefinedFunction(st) => {
+                write!(f, "Code Generation Error: Undefined Function\n{st}")
+            }
+            CGError::VarRedefinition(st) => {
+                write!(f, "Code Generation Error: Variable Redefinition\n{st}")
+            }
+            CGError::TooManyParam(st) => {
+                write!(f, "Code Generation Error: Too Many Parameter\n{st}")
+            }
+            CGError::UndefinedMain => write!(f, "Code Generation Error: Undefined main function\n"),
+        }
     }
 }
 
@@ -216,7 +218,7 @@ impl Frame {
             .expect("locals stack should never be empty")
             .contains_key(var)
         {
-            Err(CGError::var_redefinition(&id.st))
+            Err(CGError::VarRedefinition(id.st.clone()))
         } else {
             let offset = self.alloc_slot();
             self.locals
@@ -234,7 +236,7 @@ impl Frame {
                 return Ok(offset);
             }
         }
-        Err(CGError::undefined_variable(&id.st))
+        Err(CGError::UndefinedVariable(id.st.clone()))
     }
 
     fn load_local(&self, id: &Id, dst: Reg) -> Result<Instr, CGError> {
@@ -378,7 +380,7 @@ impl<'a> CodeGen<'a> {
         for Param(id, _param_type) in params {
             let src = src_iter
                 .next()
-                .ok_or_else(|| CGError::too_many_param(&id.st))?;
+                .ok_or_else(|| CGError::TooManyParam(id.st.clone()))?;
             instrs.push(self.frame.define_local(id, src)?);
         }
         Ok(instrs)
@@ -580,9 +582,9 @@ impl<'a> CodeGen<'a> {
                 // check name in scope to see if function exist
                 let param_len = exprs.len();
                 if !self.func_arity.contains_key(name) {
-                    Err(CGError::undefined_function(st))
+                    Err(CGError::UndefinedFunction(st.clone()))
                 } else if self.func_arity[name] != param_len {
-                    Err(CGError::too_many_param(st))
+                    Err(CGError::TooManyParam(st.clone()))
                 } else {
                     let mut instrs = Vec::new();
                     let mut spill_reg: Vec<Reg> = vec![Reg::T0, Reg::T1, Reg::T2]

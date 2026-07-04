@@ -12,7 +12,7 @@ fn compile_and_run(input: &str) -> (i32, String) {
     let mut p = Parser::new(&sts);
     let program = p.parse().expect("parse failed");
     let mut cg = CodeGen::new(&program);
-    let asm = CodeGen::gen_code(cg.gen_program().expect("code generation failed"));
+    let asm = CodeGen::gen_code(cg.gen_program().unwrap_or_else(|e| panic!("\n{e}\n")));
 
     // 2. Write assembly to a temp file
     fs::write("/tmp/test.s", &asm)
