@@ -4,28 +4,23 @@ use std::fmt;
 
 #[derive(Debug)]
 pub enum ScanError {
-    UnexpectedChar(Option<char>, Location), //character, line, col
+    UnexpectedChar(char, Location),
 }
+
 impl fmt::Display for ScanError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ScanError::UnexpectedChar(Some(c), loc) => {
+            ScanError::UnexpectedChar(c, loc) => {
                 write!(
                     f,
-                    "Unexpected character: {} at line {} col {}",
-                    c, loc.line, loc.col
-                )
-            }
-            ScanError::UnexpectedChar(None, loc) => {
-                write!(
-                    f,
-                    "Unexpected end of input at line {} col {}",
-                    loc.line, loc.col
+                    "Scan Error: Unexpected Character\nCharacter: {}\n{}",
+                    c, loc
                 )
             }
         }
     }
 }
+
 impl Error for ScanError {}
 
 pub struct Scanner<'a> {
@@ -102,21 +97,15 @@ impl<'a> Scanner<'a> {
     /// From current input index, scans for a number matching the pattern 0 | [1-9][0-9]*
     /// Advanced past all consumed digits.
     /// Returns an error when no digit or zero leading other digits
-    /// # Panics (debug)
-    /// Panics in debug builds if `self.index` is out of bounds.
+    /// # Panics
+    /// Panics if called when the scanner is not positioned at a leading digit
     ///
     fn advance_number(&mut self) -> Result<(), ScanError> {
-        debug_assert!(
-            self.loc.index < self.input.len(),
-            "emit_number: index out of bounds"
-        );
-
-        // advance
         match self.peek() {
             Some('0') => {
                 self.advance();
-                if matches!(self.peek(), Some('0'..='9')) {
-                    return Err(ScanError::UnexpectedChar(self.peek(), self.loc));
+                if let Some(ch @ '0'..='9') = self.peek() {
+                    return Err(ScanError::UnexpectedChar(ch, self.loc));
                 }
                 Ok(())
             }
@@ -129,7 +118,7 @@ impl<'a> Scanner<'a> {
                 }
                 Ok(())
             }
-            _ => Err(ScanError::UnexpectedChar(self.peek(), self.loc)),
+            _ => unreachable!("advance_number called without a leading digit"),
         }
     }
 
@@ -137,16 +126,10 @@ impl<'a> Scanner<'a> {
     /// From current input index, scans for a number matching the pattern [a-zA-Z_][a-zA-Z_0-9]*
     /// Advanced past all consumed characters.
     /// Returns an error when seeing an invalid character
-    /// # Panics (debug)
-    /// Panics in debug builds if `self.index` is out of bounds.
+    /// # Panics
+    /// Panics if called when the scanner is not positioned at a valid character in [a-zA-Z_]
     ///
     fn advance_id(&mut self) -> Result<(), ScanError> {
-        debug_assert!(
-            self.loc.index < self.input.len(),
-            "emit_number: index out of bounds"
-        );
-
-        //advance
         match self.peek() {
             Some('a'..='z' | 'A'..='Z' | '_') => {
                 while let Some(ch) = self.peek() {
@@ -156,9 +139,7 @@ impl<'a> Scanner<'a> {
                     self.advance();
                 }
             }
-            _ => {
-                return Err(ScanError::UnexpectedChar(self.peek(), self.loc));
-            }
+            _ => unreachable!("advance_id called without a valid leading character"),
         }
         Ok(())
     }
@@ -214,7 +195,7 @@ impl<'a> Scanner<'a> {
                 ('>', _)                         => sts.push({self.advance(); self.capture_st(Token::Grt, start)}),
                 ('0'..='9', _)                   => sts.push({self.advance_number()?; self.capture_st(Token::Num(self.capture_string(start)), start)}),
                 ('a'..='z' | 'A'..='Z' | '_', _) => sts.push({self.advance_id()?; self.capture_st(Token::Id(self.capture_string(start)), start)}),
-                (_, _) => return Err(ScanError::UnexpectedChar(self.peek(), self.loc)),
+                (ch, _) => return Err(ScanError::UnexpectedChar(ch, self.loc)),
             }
         }
         self.apply_keyword(&mut sts);
@@ -305,14 +286,14 @@ mod tests {
     fn emit_number_ignores_zero_as_head() {
         let mut s = Scanner::new("09");
         let err = s.advance_number().unwrap_err();
-        assert!(matches!(err, ScanError::UnexpectedChar(Some('9'), ..)));
+        assert!(matches!(err, ScanError::UnexpectedChar('9', ..)));
     }
 
     #[test]
+    #[should_panic]
     fn emit_number_no_digit() {
         let mut s = Scanner::new("e");
-        let err = s.advance_number().unwrap_err();
-        assert!(matches!(err, ScanError::UnexpectedChar(Some('e'), ..)));
+        let _ = s.advance_number();
     }
 
     #[test]
@@ -325,10 +306,10 @@ mod tests {
 
     // ── advance_id ───────────────────────────────────────────────────────────────
     #[test]
+    #[should_panic]
     fn emit_id_no_invalid_char() {
         let mut s = Scanner::new("!");
-        let err = s.advance_id().unwrap_err();
-        assert!(matches!(err, ScanError::UnexpectedChar(Some('!'), ..)));
+        let _ = s.advance_id();
     }
 
     #[test]
@@ -356,9 +337,9 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn emit_id_reject_leading_digit() {
         let mut s = Scanner::new("0_hi");
-        let err = s.advance_id().unwrap_err();
-        assert!(matches!(err, ScanError::UnexpectedChar(Some('0'), ..)));
+        let _ = s.advance_id();
     }
 }
