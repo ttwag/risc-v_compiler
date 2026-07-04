@@ -275,7 +275,7 @@ mod tests {
 
     // ── advance_number ───────────────────────────────────────────────────────────────
     #[test]
-    fn emit_number_matches_number() -> Result<(), ScanError> {
+    fn advance_number_matches_number() -> Result<(), ScanError> {
         let mut s = Scanner::new("12345");
         let _ = s.advance_number()?;
         assert_eq!(s.loc.index, 5);
@@ -283,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    fn emit_number_ignores_zero_as_head() {
+    fn advance_number_ignores_zero_as_head() {
         let mut s = Scanner::new("09");
         let err = s.advance_number().unwrap_err();
         assert!(matches!(err, ScanError::UnexpectedChar('9', ..)));
@@ -291,13 +291,13 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn emit_number_no_digit() {
+    fn advance_number_no_digit() {
         let mut s = Scanner::new("e");
         let _ = s.advance_number();
     }
 
     #[test]
-    fn emit_number_emits_zero() -> Result<(), ScanError> {
+    fn advance_number_advance_zero() -> Result<(), ScanError> {
         let mut s = Scanner::new("0");
         let _ = s.advance_number()?;
         assert_eq!(s.loc.index, 1);
@@ -307,13 +307,13 @@ mod tests {
     // ── advance_id ───────────────────────────────────────────────────────────────
     #[test]
     #[should_panic]
-    fn emit_id_no_invalid_char() {
+    fn advance_id_no_invalid_char() {
         let mut s = Scanner::new("!");
         let _ = s.advance_id();
     }
 
     #[test]
-    fn emit_id_take_id() -> Result<(), ScanError> {
+    fn advance_id_take_id() -> Result<(), ScanError> {
         let mut s = Scanner::new("this_is_an_id");
         let _ = s.advance_id()?;
         assert_eq!(s.loc.index, 13);
@@ -321,7 +321,7 @@ mod tests {
     }
 
     #[test]
-    fn emit_id_take_id_containing_keyword() -> Result<(), ScanError> {
+    fn advance_id_take_id_containing_keyword() -> Result<(), ScanError> {
         let mut s = Scanner::new("this_is_an_int_id");
         let _ = s.advance_id()?;
         assert_eq!(s.loc.index, 17);
@@ -329,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn emit_id_match_keyword() -> Result<(), ScanError> {
+    fn advance_id_match_keyword() -> Result<(), ScanError> {
         let mut s = Scanner::new("return");
         let _ = s.advance_id()?;
         assert_eq!(s.loc.index, 6);
@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn emit_id_reject_leading_digit() {
+    fn advance_id_reject_leading_digit() {
         let mut s = Scanner::new("0_hi");
         let _ = s.advance_id();
     }
