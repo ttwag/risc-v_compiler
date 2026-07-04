@@ -466,3 +466,83 @@ fn parse_mult_iter() {
     let expected = 20;
     assert_asm_result(expected, input);
 }
+
+#[test]
+#[serial]
+fn gen_mult_add_group() {
+    let input = indoc! {"
+    fn multiply ( n : int , m : int ) -> int {
+        let result : int := 0 ;
+        let i: int := m;
+        while ( n > 0 ) {
+            while ( i > 0 ) {
+                result := result + 1 ;
+                i := i - 1 ;
+            }
+            i := m;
+            n := n - 1 ;
+        }
+        return result ;
+    }
+
+    fn main ( ) -> int {
+        return 8 + 9 + multiply(3, 4) + (2 > multiply(9, 2));
+    }
+    "};
+    let expected = 29;
+    assert_asm_result(expected, input);
+}
+
+#[test]
+#[serial]
+fn gen_mult_group_add() {
+    let input = indoc! {"
+    fn multiply ( n : int , m : int ) -> int {
+        let result : int := 0 ;
+        let i: int := m;
+        while ( n > 0 ) {
+            while ( i > 0 ) {
+                result := result + 1 ;
+                i := i - 1 ;
+            }
+            i := m;
+            n := n - 1 ;
+        }
+        return result ;
+    }
+
+    fn main ( ) -> int {
+        return (8 + 9) + multiply(6, 7) + (2 == multiply(1, 2));
+    }
+    "};
+    let expected = 60;
+    assert_asm_result(expected, input);
+}
+
+#[test]
+#[serial]
+fn gen_mult_dis() {
+    let input = indoc! {"
+    fn multiply ( n : int , m : int ) -> int {
+        let result : int := 0 ;
+        let i: int := m;
+        while ( n > 0 ) {
+            while ( i > 0 ) {
+                result := result + 1 ;
+                i := i - 1 ;
+            }
+            i := m;
+            n := n - 1 ;
+        }
+        return result ;
+    }
+    fn assert_mult_dis(a: int, b: int, c: int) -> int {
+        return multiply(c, a + b) == multiply(c, a) + multiply(c, b);
+    }
+    fn main ( ) -> int {
+        return assert_mult_dis(1, 2, 3) + assert_mult_dis(9, 2, 0) + assert_mult_dis(4, 24, 98);
+    }
+    "};
+    let expected = 3;
+    assert_asm_result(expected, input);
+}
