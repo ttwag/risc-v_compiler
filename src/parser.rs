@@ -1,19 +1,16 @@
 use crate::ast::*;
 use crate::token::*;
+use std::fmt;
 
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
-    UnexpectedToken(Token, usize, usize), //token, line, col
-    UnexpectedEof(usize, usize),          //line, col
+    UnexpectedToken(SyntaxToken),
 }
 
-impl ParseError {
-    pub fn unexpected(st: &SyntaxToken) -> Self {
-        match st.token {
-            Token::Eof => ParseError::UnexpectedEof(st.span.start.line, st.span.start.col),
-            _ => {
-                ParseError::UnexpectedToken(st.token.clone(), st.span.start.line, st.span.start.col)
-            }
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ParseError::UnexpectedToken(st) => write!(f, "Parse Error: Unexpected Token\n{st}"),
         }
     }
 }
@@ -76,7 +73,7 @@ impl<'a> Parser<'a> {
             self.index += 1;
             Ok(st)
         } else {
-            Err(ParseError::unexpected(st))
+            Err(ParseError::UnexpectedToken(st.clone()))
         }
     }
 
@@ -172,7 +169,7 @@ impl<'a> Parser<'a> {
             Token::Let => self.parse_let_stmt(),
             Token::If => self.parse_if_stmt(),
             Token::While => self.parse_while_stmt(),
-            _ => Err(ParseError::unexpected(st)),
+            _ => Err(ParseError::UnexpectedToken(st.clone())),
         }
     }
 
@@ -264,7 +261,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(CompOp::Grt)
             }
-            _ => Err(ParseError::unexpected(st)),
+            _ => Err(ParseError::UnexpectedToken(st.clone())),
         }
     }
 
@@ -289,7 +286,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(ArithOp::Minus)
             }
-            _ => Err(ParseError::unexpected(st)),
+            _ => Err(ParseError::UnexpectedToken(st.clone())),
         }
     }
 
@@ -302,7 +299,7 @@ impl<'a> Parser<'a> {
             (Token::Id(_), _) => Ok(AtomExpr::Id(self.parse_id()?)),
             (Token::Num(_), _) => Ok(AtomExpr::Num(self.parse_num()?)),
             (Token::LParen, _) => self.parse_group(),
-            _ => Err(ParseError::unexpected(st)),
+            _ => Err(ParseError::UnexpectedToken(st.clone())),
         }
     }
 
@@ -336,7 +333,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(Type::Int)
             }
-            _ => Err(ParseError::unexpected(st)),
+            _ => Err(ParseError::UnexpectedToken(st.clone())),
         }
     }
 
@@ -352,7 +349,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(id)
             }
-            _ => Err(ParseError::unexpected(st)),
+            _ => Err(ParseError::UnexpectedToken(st.clone())),
         }
     }
 
@@ -367,7 +364,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(num)
             }
-            _ => Err(ParseError::unexpected(st)),
+            _ => Err(ParseError::UnexpectedToken(st.clone())),
         }
     }
 }
@@ -516,7 +513,7 @@ mod tests {
         }];
         let mut p = Parser::new(&sts);
         let result = p.expect(Token::LParen).unwrap_err();
-        assert!(matches!(result, ParseError::UnexpectedEof(..)));
+        assert!(matches!(result, ParseError::UnexpectedToken(..)));
         assert_eq!(p.index, 0);
     }
 }

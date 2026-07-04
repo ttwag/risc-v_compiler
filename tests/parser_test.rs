@@ -1,7 +1,7 @@
 use risc_v_compiler::{
     parser::{ParseError, Parser},
     scanner::Scanner,
-    token::Token,
+    token::{SyntaxToken, Token},
 };
 
 use indoc::indoc;
@@ -311,14 +311,23 @@ fn parse_div() {
 #[test]
 fn parse_error_missing_rcurly() {
     let input = "fn foo ( ) -> int {";
-    assert_ast_error(input, |e| matches!(e, ParseError::UnexpectedEof(..)));
+    assert_ast_error(input, |e| matches!(e, ParseError::UnexpectedToken(..)));
 }
 
 #[test]
 fn parse_error_missing_rparen() {
     let input = "fn foo ( a : int  -> int { }";
     assert_ast_error(input, |e| {
-        matches!(e, ParseError::UnexpectedToken(Token::Arrow, ..))
+        matches!(
+            e,
+            ParseError::UnexpectedToken(
+                SyntaxToken {
+                    token: Token::Arrow,
+                    ..
+                },
+                ..
+            )
+        )
     });
 }
 
@@ -326,7 +335,16 @@ fn parse_error_missing_rparen() {
 fn parse_error_missing_semi() {
     let input = "fn foo ( a : int ) -> int { return 1 + 2 }";
     assert_ast_error(input, |e| {
-        matches!(e, ParseError::UnexpectedToken(Token::RCurly, ..))
+        matches!(
+            e,
+            ParseError::UnexpectedToken(
+                SyntaxToken {
+                    token: Token::RCurly,
+                    ..
+                },
+                ..
+            )
+        )
     });
 }
 
@@ -334,7 +352,16 @@ fn parse_error_missing_semi() {
 fn parse_error_missing_if_paren() {
     let input = "fn foo ( a : int ) -> int { if a + b { } return 1 + 2 ; }";
     assert_ast_error(input, |e| {
-        matches!(e, ParseError::UnexpectedToken(Token::Id(_), ..))
+        matches!(
+            e,
+            ParseError::UnexpectedToken(
+                SyntaxToken {
+                    token: Token::Id(_),
+                    ..
+                },
+                ..
+            )
+        )
     });
 }
 
@@ -342,7 +369,16 @@ fn parse_error_missing_if_paren() {
 fn parse_error_missing_let_type() {
     let input = "fn foo ( a : int ) -> int { let a := 4 ; }";
     assert_ast_error(input, |e| {
-        matches!(e, ParseError::UnexpectedToken(Token::Assignment, ..))
+        matches!(
+            e,
+            ParseError::UnexpectedToken(
+                SyntaxToken {
+                    token: Token::Assignment,
+                    ..
+                },
+                ..
+            )
+        )
     });
 }
 
@@ -350,7 +386,16 @@ fn parse_error_missing_let_type() {
 fn parse_error_missing_param_comma() {
     let input = "fn foo ( a : int b : int ) -> int { let a := 4 ; }";
     assert_ast_error(input, |e| {
-        matches!(e, ParseError::UnexpectedToken(Token::Id(_), ..))
+        matches!(
+            e,
+            ParseError::UnexpectedToken(
+                SyntaxToken {
+                    token: Token::Id(_),
+                    ..
+                },
+                ..
+            )
+        )
     });
 }
 
@@ -358,7 +403,16 @@ fn parse_error_missing_param_comma() {
 fn parse_error_missing_return_type() {
     let input = "fn foo ( a : int , b : int ) -> { return 0 ; }";
     assert_ast_error(input, |e| {
-        matches!(e, ParseError::UnexpectedToken(Token::LCurly, ..))
+        matches!(
+            e,
+            ParseError::UnexpectedToken(
+                SyntaxToken {
+                    token: Token::LCurly,
+                    ..
+                },
+                ..
+            )
+        )
     });
 }
 
@@ -366,7 +420,16 @@ fn parse_error_missing_return_type() {
 fn parse_error_unclosed_paren() {
     let input = "fn foo ( ) -> int { return ( 1 + 2 ; }";
     assert_ast_error(input, |e| {
-        matches!(e, ParseError::UnexpectedToken(Token::Semi, ..))
+        matches!(
+            e,
+            ParseError::UnexpectedToken(
+                SyntaxToken {
+                    token: Token::Semi,
+                    ..
+                },
+                ..
+            )
+        )
     });
 }
 
@@ -374,7 +437,16 @@ fn parse_error_unclosed_paren() {
 fn parse_error_empty_return() {
     let input = "fn foo ( ) -> int { return ; }";
     assert_ast_error(input, |e| {
-        matches!(e, ParseError::UnexpectedToken(Token::Semi, ..))
+        matches!(
+            e,
+            ParseError::UnexpectedToken(
+                SyntaxToken {
+                    token: Token::Semi,
+                    ..
+                },
+                ..
+            )
+        )
     });
 }
 
@@ -382,7 +454,16 @@ fn parse_error_empty_return() {
 fn parse_error_missing_if() {
     let input = "fn foo ( ) -> int { elif ( a > 0 ) { } return 0 ; }";
     assert_ast_error(input, |e| {
-        matches!(e, ParseError::UnexpectedToken(Token::ElseIf, ..))
+        matches!(
+            e,
+            ParseError::UnexpectedToken(
+                SyntaxToken {
+                    token: Token::ElseIf,
+                    ..
+                },
+                ..
+            )
+        )
     });
 }
 
@@ -390,7 +471,16 @@ fn parse_error_missing_if() {
 fn parse_error_missing_while_expr() {
     let input = "fn foo ( ) -> int { while { } return 0 ; }";
     assert_ast_error(input, |e| {
-        matches!(e, ParseError::UnexpectedToken(Token::LCurly, ..))
+        matches!(
+            e,
+            ParseError::UnexpectedToken(
+                SyntaxToken {
+                    token: Token::LCurly,
+                    ..
+                },
+                ..
+            )
+        )
     });
 }
 
@@ -398,12 +488,21 @@ fn parse_error_missing_while_expr() {
 fn parse_error_missing_if_body() {
     let input = "fn foo ( ) -> int { if ( a > 0 ) return 0 ; }";
     assert_ast_error(input, |e| {
-        matches!(e, ParseError::UnexpectedToken(Token::Return, ..))
+        matches!(
+            e,
+            ParseError::UnexpectedToken(
+                SyntaxToken {
+                    token: Token::Return,
+                    ..
+                },
+                ..
+            )
+        )
     });
 }
 
 #[test]
 fn parse_error_expr_eof() {
     let input = "fn foo ( ) -> int { if ( a > ";
-    assert_ast_error(input, |e| matches!(e, ParseError::UnexpectedEof(..)));
+    assert_ast_error(input, |e| matches!(e, ParseError::UnexpectedToken(..)));
 }
