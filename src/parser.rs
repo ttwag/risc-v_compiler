@@ -86,22 +86,11 @@ impl<'a> Parser<'a> {
     ///
     /// # Examples
     /// ```
-    /// use risc_v_compiler::token::*;
+    /// use risc_v_compiler::scanner;
     /// use risc_v_compiler::parser;
-    /// let sts = [
-    ///     SyntaxToken { token: Token::Function,                    span: Span::default() }, // fn
-    ///     SyntaxToken { token: Token::Id(String::from("example")), span: Span::default() }, // example
-    ///     SyntaxToken { token: Token::LParen,                      span: Span::default() }, // (
-    ///     SyntaxToken { token: Token::RParen,                      span: Span::default() }, // )
-    ///     SyntaxToken { token: Token::Arrow,                       span: Span::default() }, // ->
-    ///     SyntaxToken { token: Token::Int,                         span: Span::default() }, // int
-    ///     SyntaxToken { token: Token::LCurly,                      span: Span::default() }, // {
-    ///     SyntaxToken { token: Token::Return,                      span: Span::default() }, // return
-    ///     SyntaxToken { token: Token::Num(String::from("0")),      span: Span::default() }, // 0
-    ///     SyntaxToken { token: Token::Semi,                        span: Span::default() }, // ;
-    ///     SyntaxToken { token: Token::RCurly,                      span: Span::default() }, // }
-    ///     SyntaxToken { token: Token::Eof,                         span: Span::default() }, // EOF
-    /// ];
+    /// let input = "fn main() -> int { return 0; }";
+    /// let mut sc = scanner::Scanner::new(input);
+    /// let sts = sc.scan().unwrap();
     /// let mut parser = parser::Parser::new(&sts);
     /// let ast = parser.parse();
     /// ```
