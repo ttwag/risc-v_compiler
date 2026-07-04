@@ -461,14 +461,14 @@ impl<'a> CodeGen<'a> {
                 let label_num = self.inc_label_counter();
                 let start_label = format!("while_start_{}", label_num);
                 let end_label = format!("while_end_{}", label_num);
-                
+
                 instrs.push(Instr::Label(start_label.clone()));
                 instrs.extend(self.gen_expr(cond, Reg::T0)?);
                 instrs.push(Instr::Blez(Reg::T0, end_label.clone()));
                 instrs.extend(self.gen_body(body)?);
                 instrs.push(Instr::J(start_label));
                 instrs.push(Instr::Label(end_label));
-                
+
                 Ok(instrs)
             }
         }
