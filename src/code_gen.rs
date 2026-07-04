@@ -335,6 +335,7 @@ impl<'a> CodeGen<'a> {
             + "\n"
     }
 
+    // ── Function Definition ──────────────────────────────────────────────────────────────────
     fn gen_func_def(&mut self, func_def: &FuncDef) -> Result<Vec<Instr>, CGError> {
         let FuncDef {
             params,
@@ -407,7 +408,8 @@ impl<'a> CodeGen<'a> {
         }
         Ok(instrs)
     }
-
+    
+    // ── Statements ──────────────────────────────────────────────────────────────────
     fn gen_stmt(&mut self, stmt: &Stmt) -> Result<Vec<Instr>, CGError> {
         match stmt {
             Stmt::Let(id, _var_type, expr) => {
@@ -535,6 +537,7 @@ impl<'a> CodeGen<'a> {
         Ok(instrs)
     }
 
+    // ── Expressions ──────────────────────────────────────────────────────────────────
     fn gen_expr(&mut self, expr: &Expr, dst: Reg) -> Result<Vec<Instr>, CGError> {
         let mut instrs = Vec::new();
 
@@ -642,6 +645,8 @@ impl<'a> CodeGen<'a> {
         }
     }
 
+    // ── Label ──────────────────────────────────────────────────────────────────
+    // Get current label count and then increment it by 1
     fn inc_label_counter(&mut self) -> usize {
         let cnt = self.label_counter;
         self.label_counter += 1;
@@ -671,7 +676,7 @@ mod test {
         format!("    {}\n", instrs.replace('\n', "\n    "))
     }
 
-    // ── Expr ───────────────────────────────────────────────────────────────
+    // ── gen_expr ───────────────────────────────────────────────────────────────
     #[test]
     fn gen_comp_with_lhs_num() {
         let expected_instrs = format_instr_not_in_func(indoc! {"
@@ -892,6 +897,7 @@ mod test {
         assert!(matches!(err, CGError::UndefinedFunction(..)));
     }
 
+    // ── gen_stmt ──────────────────────────────────────────────────────────────────
     // Input: let a: int := 5 ;
     #[test]
     fn gen_let_stmt() {
@@ -1272,6 +1278,7 @@ mod test {
         assert_eq!(expected_instrs, instrs);
     }
 
+    // ── gen_params ──────────────────────────────────────────────────────────────────
     // Input: (a: int, b: int)
     #[test]
     fn gen_params_with_two_param() {
@@ -1377,6 +1384,7 @@ mod test {
         assert!(matches!(err, CGError::TooManyParam(..)));
     }
 
+    // ── gen_func_def ──────────────────────────────────────────────────────────────────
     // Input: fn foo() -> int { return 0 ; }
     #[test]
     fn gen_func_with_no_param() {
@@ -1419,6 +1427,7 @@ mod test {
         assert_eq!(expected_instrs, instrs);
     }
 
+    // ── gen_program ──────────────────────────────────────────────────────────────────
     // Input: fn main() -> int { return 100 ; }
     #[test]
     fn gen_program_with_main() {
