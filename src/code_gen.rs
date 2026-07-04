@@ -267,6 +267,7 @@ pub struct CodeGen<'a> {
 }
 
 impl<'a> CodeGen<'a> {
+    // Creates a new code generation unit for the abstract syntax tree.
     pub fn new(program: &'a Program) -> Self {
         Self {
             program,
@@ -276,7 +277,28 @@ impl<'a> CodeGen<'a> {
         }
     }
 
-    pub fn gen_program(&mut self) -> Result<Vec<Instr>, CGError> {
+    /// Generates ABI-compliant RISC-V assembly code for the abstract syntax tree given in CodeGen::new()
+    ///
+    /// # Examples
+    /// ```
+    /// use risc_v_compiler::scanner;
+    /// use risc_v_compiler::parser;
+    /// use risc_v_compiler::code_gen;
+    /// 
+    /// let input = "fn main() -> int { return 0; }";
+    /// let mut sc = scanner::Scanner::new(input);
+    /// let sts = sc.scan().unwrap();
+    /// let mut parser = parser::Parser::new(&sts);
+    /// let ast = parser.parse().unwrap();
+    /// let mut cg = code_gen::CodeGen::new(&ast);
+    /// let program = cg.generate();
+    /// ```
+    pub fn generate(&mut self) -> Result<String, CGError> {
+        let program = self.gen_program()?;
+        Ok(CodeGen::gen_code(program))
+    }
+
+    fn gen_program(&mut self) -> Result<Vec<Instr>, CGError> {
         let mut instrs = Vec::new();
         let mut has_main = false;
         let Program(func_defs) = self.program;
@@ -304,7 +326,7 @@ impl<'a> CodeGen<'a> {
         }
     }
 
-    pub fn gen_code(program: Vec<Instr>) -> String {
+    fn gen_code(program: Vec<Instr>) -> String {
         program
             .iter()
             .map(|i| i.to_string())
