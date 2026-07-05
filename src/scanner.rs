@@ -163,8 +163,8 @@ impl<'a> Scanner<'a> {
     /// # Examples
     /// ```
     /// use risc_v_compiler::scanner::Scanner;
-    /// let mut scanner = Scanner::new("let x := 42;");
-    /// let sts = scanner.scan();
+    /// let src = "fn main() -> int { return 0; }";
+    /// let sts = Scanner::new(src).scan();
     /// ```
     #[rustfmt::skip]
     pub fn scan(&mut self) -> Result<Vec<SyntaxToken>, ScanError> {

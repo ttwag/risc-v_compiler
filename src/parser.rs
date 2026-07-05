@@ -93,10 +93,8 @@ impl<'a> Parser<'a> {
     /// use risc_v_compiler::scanner::Scanner;
     /// use risc_v_compiler::parser::Parser;
     /// let src = "fn main() -> int { return 0; }";
-    /// let mut sc = Scanner::new(src);
-    /// let sts = sc.scan().unwrap();
-    /// let mut parser = Parser::new(&sts);
-    /// let ast = parser.parse();
+    /// let sts = Scanner::new(src).scan().unwrap();
+    /// let ast = Parser::new(&sts).parse().unwrap();
     /// ```
     pub fn parse(&mut self) -> Result<Program, ParseError> {
         let mut func_defs = Vec::new();
