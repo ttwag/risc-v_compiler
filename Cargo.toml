@@ -3,6 +3,10 @@ name = "risc-v_compiler"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "compile"
+path = "src/main.rs"
+
 [dependencies]
 
 [dev-dependencies]
