@@ -273,16 +273,16 @@ impl<'a> CodeGen<'a> {
     ///
     /// # Examples
     /// ```
-    /// use risc_v_compiler::scanner;
-    /// use risc_v_compiler::parser;
-    /// use risc_v_compiler::code_gen;
+    /// use risc_v_compiler::scanner::Scanner;
+    /// use risc_v_compiler::parser::Parser;
+    /// use risc_v_compiler::code_gen::CodeGen;
     ///
     /// let input = "fn main() -> int { return 0; }";
-    /// let mut sc = scanner::Scanner::new(input);
+    /// let mut sc = Scanner::new(input);
     /// let sts = sc.scan().unwrap();
-    /// let mut parser = parser::Parser::new(&sts);
+    /// let mut parser = Parser::new(&sts);
     /// let ast = parser.parse().unwrap();
-    /// let mut cg = code_gen::CodeGen::new(&ast);
+    /// let mut cg = CodeGen::new(&ast);
     /// let program = cg.generate();
     /// ```
     pub fn generate(&mut self) -> Result<String, CGError> {

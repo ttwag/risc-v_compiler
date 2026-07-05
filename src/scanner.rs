@@ -162,8 +162,8 @@ impl<'a> Scanner<'a> {
     ///
     /// # Examples
     /// ```
-    /// use risc_v_compiler::scanner;
-    /// let mut scanner = scanner::Scanner::new("let x := 42;");
+    /// use risc_v_compiler::scanner::Scanner;
+    /// let mut scanner = Scanner::new("let x := 42;");
     /// let sts = scanner.scan();
     /// ```
     #[rustfmt::skip]

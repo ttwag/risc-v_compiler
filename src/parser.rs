@@ -90,12 +90,12 @@ impl<'a> Parser<'a> {
     ///
     /// # Examples
     /// ```
-    /// use risc_v_compiler::scanner;
-    /// use risc_v_compiler::parser;
+    /// use risc_v_compiler::scanner::Scanner;
+    /// use risc_v_compiler::parser::Parser;
     /// let input = "fn main() -> int { return 0; }";
-    /// let mut sc = scanner::Scanner::new(input);
+    /// let mut sc = Scanner::new(input);
     /// let sts = sc.scan().unwrap();
-    /// let mut parser = parser::Parser::new(&sts);
+    /// let mut parser = Parser::new(&sts);
     /// let ast = parser.parse();
     /// ```
     pub fn parse(&mut self) -> Result<Program, ParseError> {
