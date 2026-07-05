@@ -3,9 +3,8 @@ use crate::ast::{
     ReturnStmt, Stmt,
 };
 use crate::token::SyntaxToken;
-use core::fmt;
-use std::vec;
-use std::{collections::HashMap, fmt::Display};
+use core::{fmt, fmt::Display};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum CGError {

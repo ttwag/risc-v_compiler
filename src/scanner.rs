@@ -1,13 +1,12 @@
 use crate::token::{Location, Span, SyntaxToken, Token};
-use std::fmt;
 
 #[derive(Debug)]
 pub enum ScanError {
     UnexpectedChar(char, Location),
 }
 
-impl fmt::Display for ScanError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Display for ScanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ScanError::UnexpectedChar(c, loc) => {
                 write!(f, "Unexpected Character\nCharacter: {}\n{}", c, loc)

@@ -1,14 +1,16 @@
-use crate::ast::*;
-use crate::token::*;
-use std::fmt;
+use crate::ast::{
+    ArithExpr, ArithOp, AtomExpr, Branch, CompExpr, CompOp, Expr, FuncDef, Id, Num, Param, Program,
+    ReturnStmt, Stmt, Type,
+};
+use crate::token::{SyntaxToken, Token};
 
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
     UnexpectedToken(SyntaxToken),
 }
 
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ParseError::UnexpectedToken(st) => write!(f, "Unexpected Token\n{st}"),
         }
@@ -363,6 +365,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::token::Span;
 
     // ── new ──────────────────────────────────────────────────────────────────
     #[test]
