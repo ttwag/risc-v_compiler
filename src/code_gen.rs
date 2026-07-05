@@ -252,7 +252,7 @@ enum LabeledBranch<'a> {
 }
 
 pub struct CodeGen<'a> {
-    program: &'a Program,
+    ast: &'a Program,
     frame: Frame,
     func_arity: HashMap<String, usize>,
     label_counter: usize,
@@ -260,9 +260,9 @@ pub struct CodeGen<'a> {
 
 impl<'a> CodeGen<'a> {
     // Creates a new code generation unit for the abstract syntax tree.
-    pub fn new(program: &'a Program) -> Self {
+    pub fn new(ast: &'a Program) -> Self {
         Self {
-            program,
+            ast,
             frame: Frame::new(),
             func_arity: HashMap::new(),
             label_counter: 0,
@@ -277,13 +277,13 @@ impl<'a> CodeGen<'a> {
     /// use risc_v_compiler::parser::Parser;
     /// use risc_v_compiler::code_gen::CodeGen;
     ///
-    /// let input = "fn main() -> int { return 0; }";
-    /// let mut sc = Scanner::new(input);
+    /// let src = "fn main() -> int { return 0; }";
+    /// let mut sc = Scanner::new(src);
     /// let sts = sc.scan().unwrap();
     /// let mut parser = Parser::new(&sts);
     /// let ast = parser.parse().unwrap();
     /// let mut cg = CodeGen::new(&ast);
-    /// let program = cg.generate();
+    /// let code = cg.generate();
     /// ```
     pub fn generate(&mut self) -> Result<String, CGError> {
         let program = self.gen_program()?;
@@ -293,7 +293,7 @@ impl<'a> CodeGen<'a> {
     fn gen_program(&mut self) -> Result<Vec<Instr>, CGError> {
         let mut instrs = Vec::new();
         let mut has_main = false;
-        let Program(func_defs) = self.program;
+        let Program(func_defs) = self.ast;
 
         for func_def in func_defs {
             let name = func_def.name.name.to_owned();

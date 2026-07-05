@@ -18,24 +18,24 @@ impl std::fmt::Display for ScanError {
 impl std::error::Error for ScanError {}
 
 pub struct Scanner<'a> {
-    input: &'a str,
+    src: &'a str,
     loc: Location,
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(input: &'a str) -> Self {
+    pub fn new(src: &'a str) -> Self {
         Self {
-            input,
+            src,
             loc: Location::new(),
         }
     }
 
     fn peek(&self) -> Option<char> {
-        self.input[self.loc.index..].chars().nth(0)
+        self.src[self.loc.index..].chars().nth(0)
     }
 
     fn peek_next(&self) -> Option<char> {
-        self.input[self.loc.index..].chars().nth(1)
+        self.src[self.loc.index..].chars().nth(1)
     }
 
     fn advance(&mut self) -> Option<char> {
@@ -61,7 +61,7 @@ impl<'a> Scanner<'a> {
             "capture_st: starting index must be less than current index"
         );
         assert!(
-            self.loc.index <= self.input.len(),
+            self.loc.index <= self.src.len(),
             "capture_st: index out of bound"
         );
 
@@ -80,15 +80,15 @@ impl<'a> Scanner<'a> {
             "capture_string: starting index must be less than current index"
         );
         assert!(
-            self.loc.index <= self.input.len(),
+            self.loc.index <= self.src.len(),
             "capture_string: index out of bound"
         );
 
-        String::from(self.input.get(start.index..self.loc.index).unwrap())
+        String::from(self.src.get(start.index..self.loc.index).unwrap())
     }
 
     ///
-    /// From current input index, scans for a number matching the pattern 0 | [1-9][0-9]*
+    /// From current src index, scans for a number matching the pattern 0 | [1-9][0-9]*
     /// Advanced past all consumed digits.
     /// Returns an error when no digit or zero leading other digits
     /// # Panics
@@ -117,7 +117,7 @@ impl<'a> Scanner<'a> {
     }
 
     ///
-    /// From current input index, scans for a number matching the pattern [a-zA-Z_][a-zA-Z_0-9]*
+    /// From current src index, scans for a number matching the pattern [a-zA-Z_][a-zA-Z_0-9]*
     /// Advanced past all consumed characters.
     /// Returns an error when seeing an invalid character
     /// # Panics
@@ -155,10 +155,10 @@ impl<'a> Scanner<'a> {
     }
 
     fn read_str(&self, span: &Span) -> Option<&'a str> {
-        self.input.get(span.start.index..span.end.index)
+        self.src.get(span.start.index..span.end.index)
     }
 
-    /// Scans the input and returns a list of tokens as defined in grammar.ebnf.
+    /// Scans the src and returns a list of tokens as defined in grammar.ebnf.
     ///
     /// # Examples
     /// ```
@@ -204,7 +204,7 @@ mod tests {
 
     // ── peek ──────────────────────────────────────────────────────────────────
     #[test]
-    fn peek_on_empty_input_returns_none() {
+    fn peek_on_empty_src_returns_none() {
         let s = Scanner::new("");
         assert_eq!(s.peek(), None);
     }

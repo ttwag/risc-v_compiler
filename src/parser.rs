@@ -81,7 +81,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Parse the input syntax tokens and returns an Abstract Syntax Tree
+    /// Parse the src syntax tokens and returns an Abstract Syntax Tree
     /// The grammar is defined in `grammar.ebnf`.
     ///
     /// # Errors
@@ -92,8 +92,8 @@ impl<'a> Parser<'a> {
     /// ```
     /// use risc_v_compiler::scanner::Scanner;
     /// use risc_v_compiler::parser::Parser;
-    /// let input = "fn main() -> int { return 0; }";
-    /// let mut sc = Scanner::new(input);
+    /// let src = "fn main() -> int { return 0; }";
+    /// let mut sc = Scanner::new(src);
     /// let sts = sc.scan().unwrap();
     /// let mut parser = Parser::new(&sts);
     /// let ast = parser.parse();
