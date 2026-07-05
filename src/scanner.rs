@@ -1,5 +1,4 @@
 use crate::token::{Location, Span, SyntaxToken, Token};
-use std::error::Error;
 use std::fmt;
 
 #[derive(Debug)]
@@ -11,17 +10,13 @@ impl fmt::Display for ScanError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ScanError::UnexpectedChar(c, loc) => {
-                write!(
-                    f,
-                    "Scan Error: Unexpected Character\nCharacter: {}\n{}",
-                    c, loc
-                )
+                write!(f, "Unexpected Character\nCharacter: {}\n{}", c, loc)
             }
         }
     }
 }
 
-impl Error for ScanError {}
+impl std::error::Error for ScanError {}
 
 pub struct Scanner<'a> {
     input: &'a str,

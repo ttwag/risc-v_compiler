@@ -10,10 +10,12 @@ pub enum ParseError {
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ParseError::UnexpectedToken(st) => write!(f, "Parse Error: Unexpected Token\n{st}"),
+            ParseError::UnexpectedToken(st) => write!(f, "Unexpected Token\n{st}"),
         }
     }
 }
+
+impl std::error::Error for ParseError {}
 
 pub struct Parser<'a> {
     index: usize,

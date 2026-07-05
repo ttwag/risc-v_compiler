@@ -20,21 +20,23 @@ impl fmt::Display for CGError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             CGError::UndefinedVariable(st) => {
-                write!(f, "Code Generation Error: Undefined Variable\n{st}")
+                write!(f, "Undefined Variable\n{st}")
             }
             CGError::UndefinedFunction(st) => {
-                write!(f, "Code Generation Error: Undefined Function\n{st}")
+                write!(f, "Undefined Function\n{st}")
             }
             CGError::VarRedefinition(st) => {
-                write!(f, "Code Generation Error: Variable Redefinition\n{st}")
+                write!(f, "Variable Redefinition\n{st}")
             }
             CGError::TooManyParam(st) => {
-                write!(f, "Code Generation Error: Too Many Parameter\n{st}")
+                write!(f, "Too Many Parameter\n{st}")
             }
-            CGError::UndefinedMain => write!(f, "Code Generation Error: Undefined main function\n"),
+            CGError::UndefinedMain => write!(f, "Undefined 'main' Function\n"),
         }
     }
 }
+
+impl std::error::Error for CGError {}
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Reg {
@@ -284,7 +286,7 @@ impl<'a> CodeGen<'a> {
     /// use risc_v_compiler::scanner;
     /// use risc_v_compiler::parser;
     /// use risc_v_compiler::code_gen;
-    /// 
+    ///
     /// let input = "fn main() -> int { return 0; }";
     /// let mut sc = scanner::Scanner::new(input);
     /// let sts = sc.scan().unwrap();
@@ -408,7 +410,7 @@ impl<'a> CodeGen<'a> {
         }
         Ok(instrs)
     }
-    
+
     // ── Statements ──────────────────────────────────────────────────────────────────
     fn gen_stmt(&mut self, stmt: &Stmt) -> Result<Vec<Instr>, CGError> {
         match stmt {
