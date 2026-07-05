@@ -12,7 +12,7 @@ pub enum ParseError {
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ParseError::UnexpectedToken(st) => write!(f, "Unexpected Token\n{st}"),
+            ParseError::UnexpectedToken(st) => write!(f, "unexpected token {st}"),
         }
     }
 }

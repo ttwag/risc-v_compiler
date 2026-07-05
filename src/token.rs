@@ -73,7 +73,7 @@ pub struct SyntaxToken {
 
 impl fmt::Display for SyntaxToken {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Token: {}\n{}", self.token, self.span)
+        write!(f, "`{}` at {}", self.token, self.span.start)
     }
 }
 
@@ -108,6 +108,6 @@ impl Location {
 
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Line: {}, Char: {}", self.line, self.col)
+        write!(f, "{}:{}", self.line, self.col)
     }
 }

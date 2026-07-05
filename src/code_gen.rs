@@ -19,18 +19,18 @@ impl fmt::Display for CGError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             CGError::UndefinedVariable(st) => {
-                write!(f, "Undefined Variable\n{st}")
+                write!(f, "undefined variable {st}")
             }
             CGError::UndefinedFunction(st) => {
-                write!(f, "Undefined Function\n{st}")
+                write!(f, "undefined function {st}")
             }
             CGError::VarRedefinition(st) => {
-                write!(f, "Variable Redefinition\n{st}")
+                write!(f, "variable redefinition {st}")
             }
             CGError::TooManyParam(st) => {
-                write!(f, "Too Many Parameter\n{st}")
+                write!(f, "too many parameter {st}")
             }
-            CGError::UndefinedMain => write!(f, "Undefined 'main' Function\n"),
+            CGError::UndefinedMain => write!(f, "undefined 'main' function"),
         }
     }
 }

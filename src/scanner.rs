@@ -9,7 +9,7 @@ impl std::fmt::Display for ScanError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ScanError::UnexpectedChar(c, loc) => {
-                write!(f, "Unexpected Character\nCharacter: {}\n{}", c, loc)
+                write!(f, "unexpected character `{c}` at {loc}")
             }
         }
     }
