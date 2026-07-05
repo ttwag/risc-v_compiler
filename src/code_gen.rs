@@ -38,7 +38,7 @@ impl fmt::Display for CGError {
 impl std::error::Error for CGError {}
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub enum Reg {
+enum Reg {
     // stack pointer
     Sp,
     // frame pointer
@@ -60,14 +60,11 @@ pub enum Reg {
     T0,
     T1,
     T2,
-    // hardwired to 0
-    Zero,
 }
 
 impl Display for Reg {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Reg::Zero => write!(f, "zero"),
             Reg::A0 => write!(f, "a0"),
             Reg::A1 => write!(f, "a1"),
             Reg::A2 => write!(f, "a2"),
@@ -88,7 +85,7 @@ impl Display for Reg {
 }
 
 #[derive(Debug)]
-pub enum Instr {
+enum Instr {
     // arithmetic
     Add(Reg, Reg, Reg),  // add rd, rs1, rs2
     Sub(Reg, Reg, Reg),  // sub rd, rs1, rs2
@@ -106,12 +103,9 @@ pub enum Instr {
 
     Mv(Reg, Reg), //rd, rs1
 
-    // branch
-    Bge(Reg, Reg, String), //bge rs1, rs2, label
     // branch if <= 0
     Blez(Reg, String), //blez rs1, label
-    // jump and link register
-    Jalr(Reg, Reg, i32), //jalr rd, rs1, imm
+
     // jump to label
     J(String), //jal x0, label
 
@@ -142,26 +136,23 @@ impl Display for Instr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         const INDENT: &str = "    "; // 4 spaces
         match self {
-            Instr::Add(rd, rs1, rs2) => write!(f, "{}add {}, {}, {}", INDENT, rd, rs1, rs2),
-            Instr::Addi(rd, rs1, imm) => write!(f, "{}addi {}, {}, {}", INDENT, rd, rs1, imm),
-            Instr::Sub(rd, rs1, rs2) => write!(f, "{}sub {}, {}, {}", INDENT, rd, rs1, rs2),
-            Instr::Li(rd, imm)             => write!(f, "{}li {}, {}", INDENT, rd, imm),
-            Instr::Mv(rd, rs1)             => write!(f, "{}mv {}, {}", INDENT, rd, rs1),
-            Instr::Slt(rd, rs1, rs2) => write!(f, "{}slt {}, {}, {}", INDENT, rd, rs1, rs2),
-            Instr::Xor(rd, rs1, rs2) => write!(f, "{}xor {}, {}, {}", INDENT, rd, rs1, rs2),
-            Instr::Seqz(rd, rs1)           => write!(f, "{}seqz {}, {}", INDENT, rd, rs1),
-            Instr::Blez(rs1, label)     => write!(f, "{}blez {}, {}", INDENT, rs1, label),
-            Instr::J(label)                   => write!(f, "{}j {}", INDENT, label),
-            Instr::Sw(rs2, offset, rs1) => write!(f, "{}sw {}, {}({})", INDENT, rs2, offset, rs1),
-            Instr::Lw(rd, offset, rs1) => write!(f, "{}lw {}, {}({})", INDENT, rd, offset, rs1),
-            Instr::Ret => write!(f, "{}ret", INDENT),
-            Instr::Label(name) => write!(f, "{}:", name),
-            Instr::Directive(text) => write!(f, "{}", text),
-            Instr::Call(label) => write!(f, "{}call {}", INDENT, label),
-            Instr::Ecall => write!(f, "{}ecall", INDENT),
-            _ => {
-                todo!()
-            }
+            Instr::Directive(text)               => write!(f, "{}", text),
+            Instr::Label(name)                   => write!(f, "{}:", name),
+            Instr::Add(rd, rs1, rs2)    => write!(f, "{INDENT}add {}, {}, {}", rd, rs1, rs2),
+            Instr::Addi(rd, rs1, imm)   => write!(f, "{INDENT}addi {}, {}, {}", rd, rs1, imm),
+            Instr::Sub(rd, rs1, rs2)    => write!(f, "{INDENT}sub {}, {}, {}", rd, rs1, rs2),
+            Instr::Li(rd, imm)                => write!(f, "{INDENT}li {}, {}", rd, imm),
+            Instr::Mv(rd, rs1)                => write!(f, "{INDENT}mv {}, {}", rd, rs1),
+            Instr::Slt(rd, rs1, rs2)    => write!(f, "{INDENT}slt {}, {}, {}", rd, rs1, rs2),
+            Instr::Xor(rd, rs1, rs2)    => write!(f, "{INDENT}xor {}, {}, {}", rd, rs1, rs2),
+            Instr::Seqz(rd, rs1)              => write!(f, "{INDENT}seqz {}, {}", rd, rs1),
+            Instr::Blez(rs1, label)        => write!(f, "{INDENT}blez {}, {}", rs1, label),
+            Instr::J(label)                      => write!(f, "{INDENT}j {}", label),
+            Instr::Sw(rs2, offset, rs1) => write!(f, "{INDENT}sw {}, {}({})", rs2, offset, rs1),
+            Instr::Lw(rd, offset, rs1)  => write!(f, "{INDENT}lw {}, {}({})", rd, offset, rs1),
+            Instr::Ret                                    => write!(f, "{INDENT}ret"),
+            Instr::Call(label)                   => write!(f, "{INDENT}call {}", label),
+            Instr::Ecall                                  => write!(f, "{INDENT}ecall"),
         }
     }
 }
