@@ -30,6 +30,45 @@ impl<'a> Scanner<'a> {
         }
     }
 
+    /// Scans the src and returns a list of tokens as defined in grammar.ebnf.
+    ///
+    /// # Examples
+    /// ```
+    /// use risc_v_compiler::scanner::Scanner;
+    /// let src = "fn main() -> int { return 0; }";
+    /// let sts = Scanner::new(src).scan();
+    /// ```
+    #[rustfmt::skip]
+    pub fn scan(&mut self) -> Result<Vec<SyntaxToken>, ScanError> {
+        let mut sts = Vec::new();
+        while let Some(curr) = self.peek() {
+            let next = self.peek_next();
+            let start = self.loc;
+            match (curr, next) {
+                (' ' | '\t' | '\n' | '\r', _)    => {self.advance();}
+                (':', Some('='))                 => sts.push({self.advance(); self.advance(); self.capture_st(Token::Assignment, start)}),
+                ('=', Some('='))                 => sts.push({self.advance(); self.advance(); self.capture_st(Token::Equality, start)}),
+                ('-', Some('>'))                 => sts.push({self.advance(); self.advance(); self.capture_st(Token::Arrow, start)}),
+                ('(', _)                         => sts.push({self.advance(); self.capture_st(Token::LParen, start)}),
+                (')', _)                         => sts.push({self.advance(); self.capture_st(Token::RParen, start)}),
+                ('{', _)                         => sts.push({self.advance(); self.capture_st(Token::LCurly, start)}),
+                ('}', _)                         => sts.push({self.advance(); self.capture_st(Token::RCurly, start)}),
+                (';', _)                         => sts.push({self.advance(); self.capture_st(Token::Semi, start)}),
+                (':', _)                         => sts.push({self.advance(); self.capture_st(Token::Colon, start)}),
+                (',', _)                         => sts.push({self.advance(); self.capture_st(Token::Comma, start)}),
+                ('+', _)                         => sts.push({self.advance(); self.capture_st(Token::Plus, start)}),
+                ('-', _)                         => sts.push({self.advance(); self.capture_st(Token::Minus, start)}),
+                ('>', _)                         => sts.push({self.advance(); self.capture_st(Token::Grt, start)}),
+                ('0'..='9', _)                   => sts.push({self.advance_number()?; self.capture_st(Token::Num(self.capture_string(start)), start)}),
+                ('a'..='z' | 'A'..='Z' | '_', _) => sts.push({self.advance_id()?; self.capture_st(Token::Id(self.capture_string(start)), start)}),
+                (ch, _) => return Err(ScanError::UnexpectedChar(ch, self.loc)),
+            }
+        }
+        self.apply_keyword(&mut sts);
+        sts.push(SyntaxToken {token: Token::Eof, span: Span {start: self.loc, end: self.loc,}});
+        Ok(sts)
+    }
+
     fn peek(&self) -> Option<char> {
         self.src[self.loc.index..].chars().nth(0)
     }
@@ -156,45 +195,6 @@ impl<'a> Scanner<'a> {
 
     fn read_str(&self, span: &Span) -> Option<&'a str> {
         self.src.get(span.start.index..span.end.index)
-    }
-
-    /// Scans the src and returns a list of tokens as defined in grammar.ebnf.
-    ///
-    /// # Examples
-    /// ```
-    /// use risc_v_compiler::scanner::Scanner;
-    /// let src = "fn main() -> int { return 0; }";
-    /// let sts = Scanner::new(src).scan();
-    /// ```
-    #[rustfmt::skip]
-    pub fn scan(&mut self) -> Result<Vec<SyntaxToken>, ScanError> {
-        let mut sts = Vec::new();
-        while let Some(curr) = self.peek() {
-            let next = self.peek_next();
-            let start = self.loc;
-            match (curr, next) {
-                (' ' | '\t' | '\n' | '\r', _)    => {self.advance();}
-                (':', Some('='))                 => sts.push({self.advance(); self.advance(); self.capture_st(Token::Assignment, start)}),
-                ('=', Some('='))                 => sts.push({self.advance(); self.advance(); self.capture_st(Token::Equality, start)}),
-                ('-', Some('>'))                 => sts.push({self.advance(); self.advance(); self.capture_st(Token::Arrow, start)}),
-                ('(', _)                         => sts.push({self.advance(); self.capture_st(Token::LParen, start)}),
-                (')', _)                         => sts.push({self.advance(); self.capture_st(Token::RParen, start)}),
-                ('{', _)                         => sts.push({self.advance(); self.capture_st(Token::LCurly, start)}),
-                ('}', _)                         => sts.push({self.advance(); self.capture_st(Token::RCurly, start)}),
-                (';', _)                         => sts.push({self.advance(); self.capture_st(Token::Semi, start)}),
-                (':', _)                         => sts.push({self.advance(); self.capture_st(Token::Colon, start)}),
-                (',', _)                         => sts.push({self.advance(); self.capture_st(Token::Comma, start)}),
-                ('+', _)                         => sts.push({self.advance(); self.capture_st(Token::Plus, start)}),
-                ('-', _)                         => sts.push({self.advance(); self.capture_st(Token::Minus, start)}),
-                ('>', _)                         => sts.push({self.advance(); self.capture_st(Token::Grt, start)}),
-                ('0'..='9', _)                   => sts.push({self.advance_number()?; self.capture_st(Token::Num(self.capture_string(start)), start)}),
-                ('a'..='z' | 'A'..='Z' | '_', _) => sts.push({self.advance_id()?; self.capture_st(Token::Id(self.capture_string(start)), start)}),
-                (ch, _) => return Err(ScanError::UnexpectedChar(ch, self.loc)),
-            }
-        }
-        self.apply_keyword(&mut sts);
-        sts.push(SyntaxToken {token: Token::Eof, span: Span {start: self.loc, end: self.loc,}});
-        Ok(sts)
     }
 }
 

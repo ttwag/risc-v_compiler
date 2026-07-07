@@ -37,220 +37,6 @@ impl fmt::Display for CGError {
 
 impl std::error::Error for CGError {}
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-enum Reg {
-    // stack pointer
-    Sp,
-    // frame pointer
-    S0,
-    S1,
-    // return value
-    A0,
-    // return address
-    Ra,
-    // function arguments
-    A1,
-    A2,
-    A3,
-    A4,
-    A5,
-    A6,
-    A7,
-    // scratch
-    T0,
-    T1,
-    T2,
-}
-
-impl Display for Reg {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Reg::A0 => write!(f, "a0"),
-            Reg::A1 => write!(f, "a1"),
-            Reg::A2 => write!(f, "a2"),
-            Reg::A3 => write!(f, "a3"),
-            Reg::A4 => write!(f, "a4"),
-            Reg::A5 => write!(f, "a5"),
-            Reg::A6 => write!(f, "a6"),
-            Reg::A7 => write!(f, "a7"),
-            Reg::T0 => write!(f, "t0"),
-            Reg::T1 => write!(f, "t1"),
-            Reg::T2 => write!(f, "t2"),
-            Reg::Sp => write!(f, "sp"),
-            Reg::S0 => write!(f, "s0"),
-            Reg::S1 => write!(f, "s1"),
-            Reg::Ra => write!(f, "ra"),
-        }
-    }
-}
-
-#[derive(Debug)]
-enum Instr {
-    // arithmetic
-    Add(Reg, Reg, Reg),  // add rd, rs1, rs2
-    Sub(Reg, Reg, Reg),  // sub rd, rs1, rs2
-    Addi(Reg, Reg, i32), // addi rd, rs1, imm
-    Slt(Reg, Reg, Reg),  // rd, rs1, rs2
-    Xor(Reg, Reg, Reg),  // rd, rs1, rs2
-    Seqz(Reg, Reg),      // rd, rs1
-
-    // load/store
-    Lw(Reg, i32, Reg), //lw rd, offset(rs1)
-    Sw(Reg, i32, Reg), //sw rs2, offset(rs1)
-
-    // load immediate
-    Li(Reg, i32), //li rd, imm
-
-    Mv(Reg, Reg), //rd, rs1
-
-    // branch if <= 0
-    Blez(Reg, String), //blez rs1, label
-
-    // jump to label
-    J(String), //jal x0, label
-
-    // return (jalr x0, ra, 0)
-    Ret,
-
-    Label(String),
-
-    Directive(String),
-
-    Call(String),
-
-    Ecall,
-}
-
-impl Instr {
-    fn gen_mv(dst: Reg, rs1: Reg) -> Vec<Instr> {
-        if dst == rs1 {
-            vec![]
-        } else {
-            vec![Instr::Mv(dst, rs1)]
-        }
-    }
-}
-
-#[rustfmt::skip]
-impl Display for Instr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        const INDENT: &str = "    "; // 4 spaces
-        match self {
-            Instr::Directive(text)               => write!(f, "{}", text),
-            Instr::Label(name)                   => write!(f, "{}:", name),
-            Instr::Add(rd, rs1, rs2)    => write!(f, "{INDENT}add {}, {}, {}", rd, rs1, rs2),
-            Instr::Addi(rd, rs1, imm)   => write!(f, "{INDENT}addi {}, {}, {}", rd, rs1, imm),
-            Instr::Sub(rd, rs1, rs2)    => write!(f, "{INDENT}sub {}, {}, {}", rd, rs1, rs2),
-            Instr::Li(rd, imm)                => write!(f, "{INDENT}li {}, {}", rd, imm),
-            Instr::Mv(rd, rs1)                => write!(f, "{INDENT}mv {}, {}", rd, rs1),
-            Instr::Slt(rd, rs1, rs2)    => write!(f, "{INDENT}slt {}, {}, {}", rd, rs1, rs2),
-            Instr::Xor(rd, rs1, rs2)    => write!(f, "{INDENT}xor {}, {}, {}", rd, rs1, rs2),
-            Instr::Seqz(rd, rs1)              => write!(f, "{INDENT}seqz {}, {}", rd, rs1),
-            Instr::Blez(rs1, label)        => write!(f, "{INDENT}blez {}, {}", rs1, label),
-            Instr::J(label)                      => write!(f, "{INDENT}j {}", label),
-            Instr::Sw(rs2, offset, rs1) => write!(f, "{INDENT}sw {}, {}({})", rs2, offset, rs1),
-            Instr::Lw(rd, offset, rs1)  => write!(f, "{INDENT}lw {}, {}({})", rd, offset, rs1),
-            Instr::Ret                                    => write!(f, "{INDENT}ret"),
-            Instr::Call(label)                   => write!(f, "{INDENT}call {}", label),
-            Instr::Ecall                                  => write!(f, "{INDENT}ecall"),
-        }
-    }
-}
-
-struct Frame {
-    spill_stack: Vec<Vec<(Reg, i32)>>,
-    locals: Vec<HashMap<String, i32>>,
-    frame_offset: i32,
-}
-
-impl Frame {
-    const WORD_SIZE: usize = 4;
-    fn new() -> Self {
-        Self {
-            spill_stack: vec![],
-            locals: vec![],
-            frame_offset: 0,
-        }
-    }
-
-    fn alloc_slot(&mut self) -> i32 {
-        self.frame_offset -= Self::WORD_SIZE as i32;
-        self.frame_offset
-    }
-
-    fn spill(&mut self, regs: Vec<Reg>) -> Vec<Instr> {
-        let mut instrs = Vec::new();
-        let mut spill = Vec::new();
-        for &reg in &regs {
-            let offset = self.alloc_slot();
-            spill.push((reg, offset));
-            instrs.push(Instr::Sw(reg, offset, Reg::S0));
-        }
-        self.spill_stack.push(spill);
-
-        instrs
-    }
-
-    fn unspill(&mut self) -> Vec<Instr> {
-        let spill = self.spill_stack.pop().expect("pop with empty stack");
-        let mut instrs = Vec::new();
-
-        for (reg, offset) in spill {
-            instrs.push(Instr::Lw(reg, offset, Reg::S0));
-        }
-
-        instrs
-    }
-
-    fn define_local(&mut self, id: &Id, src: Reg) -> Result<Instr, CGError> {
-        let var = &id.name;
-        if self
-            .locals
-            .last()
-            .expect("locals stack should never be empty")
-            .contains_key(var)
-        {
-            Err(CGError::VarRedefinition(id.st.clone()))
-        } else {
-            let offset = self.alloc_slot();
-            self.locals
-                .last_mut()
-                .expect("locals stack should never be empty")
-                .insert(var.to_owned(), offset);
-            Ok(Instr::Sw(src, self.frame_offset, Reg::S0))
-        }
-    }
-
-    fn get_local_offset(&self, id: &Id) -> Result<i32, CGError> {
-        let var = &id.name;
-        for local in self.locals.iter().rev() {
-            if let Some(&offset) = local.get(var) {
-                return Ok(offset);
-            }
-        }
-        Err(CGError::UndefinedVariable(id.st.clone()))
-    }
-
-    fn load_local(&self, id: &Id, dst: Reg) -> Result<Instr, CGError> {
-        let offset = self.get_local_offset(id)?;
-        Ok(Instr::Lw(dst, offset, Reg::S0))
-    }
-
-    fn push_local_scope(&mut self) {
-        self.locals.push(HashMap::new());
-    }
-
-    fn pop_local_scope(&mut self) {
-        self.locals.pop();
-    }
-}
-
-enum LabeledBranch<'a> {
-    If(String, String, &'a Expr, &'a Vec<Stmt>), // cond_label, jump_label, cond, body
-    Elif(String, String, String, &'a Expr, &'a Vec<Stmt>), // body_label, cond_label, jump_label, cond, body
-    Else(String, &'a Vec<Stmt>),                           // body_label, body
-}
-
 pub struct CodeGen<'a> {
     ast: &'a Program,
     frame: Frame,
@@ -641,6 +427,220 @@ impl<'a> CodeGen<'a> {
         self.label_counter += 1;
         cnt
     }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+enum Reg {
+    // stack pointer
+    Sp,
+    // frame pointer
+    S0,
+    S1,
+    // return value
+    A0,
+    // return address
+    Ra,
+    // function arguments
+    A1,
+    A2,
+    A3,
+    A4,
+    A5,
+    A6,
+    A7,
+    // scratch
+    T0,
+    T1,
+    T2,
+}
+
+impl Display for Reg {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Reg::A0 => write!(f, "a0"),
+            Reg::A1 => write!(f, "a1"),
+            Reg::A2 => write!(f, "a2"),
+            Reg::A3 => write!(f, "a3"),
+            Reg::A4 => write!(f, "a4"),
+            Reg::A5 => write!(f, "a5"),
+            Reg::A6 => write!(f, "a6"),
+            Reg::A7 => write!(f, "a7"),
+            Reg::T0 => write!(f, "t0"),
+            Reg::T1 => write!(f, "t1"),
+            Reg::T2 => write!(f, "t2"),
+            Reg::Sp => write!(f, "sp"),
+            Reg::S0 => write!(f, "s0"),
+            Reg::S1 => write!(f, "s1"),
+            Reg::Ra => write!(f, "ra"),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum Instr {
+    // arithmetic
+    Add(Reg, Reg, Reg),  // add rd, rs1, rs2
+    Sub(Reg, Reg, Reg),  // sub rd, rs1, rs2
+    Addi(Reg, Reg, i32), // addi rd, rs1, imm
+    Slt(Reg, Reg, Reg),  // rd, rs1, rs2
+    Xor(Reg, Reg, Reg),  // rd, rs1, rs2
+    Seqz(Reg, Reg),      // rd, rs1
+
+    // load/store
+    Lw(Reg, i32, Reg), //lw rd, offset(rs1)
+    Sw(Reg, i32, Reg), //sw rs2, offset(rs1)
+
+    // load immediate
+    Li(Reg, i32), //li rd, imm
+
+    Mv(Reg, Reg), //rd, rs1
+
+    // branch if <= 0
+    Blez(Reg, String), //blez rs1, label
+
+    // jump to label
+    J(String), //jal x0, label
+
+    // return (jalr x0, ra, 0)
+    Ret,
+
+    Label(String),
+
+    Directive(String),
+
+    Call(String),
+
+    Ecall,
+}
+
+impl Instr {
+    fn gen_mv(dst: Reg, rs1: Reg) -> Vec<Instr> {
+        if dst == rs1 {
+            vec![]
+        } else {
+            vec![Instr::Mv(dst, rs1)]
+        }
+    }
+}
+
+#[rustfmt::skip]
+impl Display for Instr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        const INDENT: &str = "    "; // 4 spaces
+        match self {
+            Instr::Directive(text)               => write!(f, "{}", text),
+            Instr::Label(name)                   => write!(f, "{}:", name),
+            Instr::Add(rd, rs1, rs2)    => write!(f, "{INDENT}add {}, {}, {}", rd, rs1, rs2),
+            Instr::Addi(rd, rs1, imm)   => write!(f, "{INDENT}addi {}, {}, {}", rd, rs1, imm),
+            Instr::Sub(rd, rs1, rs2)    => write!(f, "{INDENT}sub {}, {}, {}", rd, rs1, rs2),
+            Instr::Li(rd, imm)                => write!(f, "{INDENT}li {}, {}", rd, imm),
+            Instr::Mv(rd, rs1)                => write!(f, "{INDENT}mv {}, {}", rd, rs1),
+            Instr::Slt(rd, rs1, rs2)    => write!(f, "{INDENT}slt {}, {}, {}", rd, rs1, rs2),
+            Instr::Xor(rd, rs1, rs2)    => write!(f, "{INDENT}xor {}, {}, {}", rd, rs1, rs2),
+            Instr::Seqz(rd, rs1)              => write!(f, "{INDENT}seqz {}, {}", rd, rs1),
+            Instr::Blez(rs1, label)        => write!(f, "{INDENT}blez {}, {}", rs1, label),
+            Instr::J(label)                      => write!(f, "{INDENT}j {}", label),
+            Instr::Sw(rs2, offset, rs1) => write!(f, "{INDENT}sw {}, {}({})", rs2, offset, rs1),
+            Instr::Lw(rd, offset, rs1)  => write!(f, "{INDENT}lw {}, {}({})", rd, offset, rs1),
+            Instr::Ret                                    => write!(f, "{INDENT}ret"),
+            Instr::Call(label)                   => write!(f, "{INDENT}call {}", label),
+            Instr::Ecall                                  => write!(f, "{INDENT}ecall"),
+        }
+    }
+}
+
+struct Frame {
+    spill_stack: Vec<Vec<(Reg, i32)>>,
+    locals: Vec<HashMap<String, i32>>,
+    frame_offset: i32,
+}
+
+impl Frame {
+    const WORD_SIZE: usize = 4;
+    fn new() -> Self {
+        Self {
+            spill_stack: vec![],
+            locals: vec![],
+            frame_offset: 0,
+        }
+    }
+
+    fn alloc_slot(&mut self) -> i32 {
+        self.frame_offset -= Self::WORD_SIZE as i32;
+        self.frame_offset
+    }
+
+    fn spill(&mut self, regs: Vec<Reg>) -> Vec<Instr> {
+        let mut instrs = Vec::new();
+        let mut spill = Vec::new();
+        for &reg in &regs {
+            let offset = self.alloc_slot();
+            spill.push((reg, offset));
+            instrs.push(Instr::Sw(reg, offset, Reg::S0));
+        }
+        self.spill_stack.push(spill);
+
+        instrs
+    }
+
+    fn unspill(&mut self) -> Vec<Instr> {
+        let spill = self.spill_stack.pop().expect("pop with empty stack");
+        let mut instrs = Vec::new();
+
+        for (reg, offset) in spill {
+            instrs.push(Instr::Lw(reg, offset, Reg::S0));
+        }
+
+        instrs
+    }
+
+    fn define_local(&mut self, id: &Id, src: Reg) -> Result<Instr, CGError> {
+        let var = &id.name;
+        if self
+            .locals
+            .last()
+            .expect("locals stack should never be empty")
+            .contains_key(var)
+        {
+            Err(CGError::VarRedefinition(id.st.clone()))
+        } else {
+            let offset = self.alloc_slot();
+            self.locals
+                .last_mut()
+                .expect("locals stack should never be empty")
+                .insert(var.to_owned(), offset);
+            Ok(Instr::Sw(src, self.frame_offset, Reg::S0))
+        }
+    }
+
+    fn get_local_offset(&self, id: &Id) -> Result<i32, CGError> {
+        let var = &id.name;
+        for local in self.locals.iter().rev() {
+            if let Some(&offset) = local.get(var) {
+                return Ok(offset);
+            }
+        }
+        Err(CGError::UndefinedVariable(id.st.clone()))
+    }
+
+    fn load_local(&self, id: &Id, dst: Reg) -> Result<Instr, CGError> {
+        let offset = self.get_local_offset(id)?;
+        Ok(Instr::Lw(dst, offset, Reg::S0))
+    }
+
+    fn push_local_scope(&mut self) {
+        self.locals.push(HashMap::new());
+    }
+
+    fn pop_local_scope(&mut self) {
+        self.locals.pop();
+    }
+}
+
+enum LabeledBranch<'a> {
+    If(String, String, &'a Expr, &'a Vec<Stmt>), // cond_label, jump_label, cond, body
+    Elif(String, String, String, &'a Expr, &'a Vec<Stmt>), // body_label, cond_label, jump_label, cond, body
+    Else(String, &'a Vec<Stmt>),                           // body_label, body
 }
 
 #[cfg(test)]

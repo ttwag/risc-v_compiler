@@ -28,7 +28,7 @@ fn test_main_compile() {
     let temp_workspace = tempdir().unwrap();
     let temp_path = temp_workspace.path();
     let fixture_src = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    
+
     // copy all files from test fixtures to tempdir
     Command::new("cp")
         .arg("-r")

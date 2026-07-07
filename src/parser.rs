@@ -41,6 +41,30 @@ impl<'a> Parser<'a> {
         Self { index: 0, sts }
     }
 
+    /// Parse the src syntax tokens and returns an Abstract Syntax Tree
+    /// The grammar is defined in `grammar.ebnf`.
+    ///
+    /// # Errors
+    ///
+    /// Parsing stops and return an error when hitting unexpected Eof or invalid token
+    ///
+    /// # Examples
+    /// ```
+    /// use risc_v_compiler::scanner::Scanner;
+    /// use risc_v_compiler::parser::Parser;
+    /// let src = "fn main() -> int { return 0; }";
+    /// let sts = Scanner::new(src).scan().unwrap();
+    /// let ast = Parser::new(&sts).parse().unwrap();
+    /// ```
+    pub fn parse(&mut self) -> Result<Program, ParseError> {
+        let mut func_defs = Vec::new();
+        func_defs.push(self.parse_func_def()?);
+        while self.peek().token != Token::Eof {
+            func_defs.push(self.parse_func_def()?);
+        }
+        Ok(Program(func_defs))
+    }
+
     fn peek(&self) -> &SyntaxToken {
         self.sts
             .get(self.index)
@@ -79,30 +103,6 @@ impl<'a> Parser<'a> {
         } else {
             Err(ParseError::UnexpectedToken(st.clone()))
         }
-    }
-
-    /// Parse the src syntax tokens and returns an Abstract Syntax Tree
-    /// The grammar is defined in `grammar.ebnf`.
-    ///
-    /// # Errors
-    ///
-    /// Parsing stops and return an error when hitting unexpected Eof or invalid token
-    ///
-    /// # Examples
-    /// ```
-    /// use risc_v_compiler::scanner::Scanner;
-    /// use risc_v_compiler::parser::Parser;
-    /// let src = "fn main() -> int { return 0; }";
-    /// let sts = Scanner::new(src).scan().unwrap();
-    /// let ast = Parser::new(&sts).parse().unwrap();
-    /// ```
-    pub fn parse(&mut self) -> Result<Program, ParseError> {
-        let mut func_defs = Vec::new();
-        func_defs.push(self.parse_func_def()?);
-        while self.peek().token != Token::Eof {
-            func_defs.push(self.parse_func_def()?);
-        }
-        Ok(Program(func_defs))
     }
 
     // ── Function Definition ──────────────────────────────────────────────────────────────────
