@@ -1,0 +1,3 @@
+fn main1() -> int {
+    return fib(5);
+}

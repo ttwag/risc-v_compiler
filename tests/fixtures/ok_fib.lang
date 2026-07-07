@@ -1,0 +1,17 @@
+fn fib ( n : int ) -> int {
+    let result : int := 0 ;
+    if ( n == 0 ) {
+        result := 0 ;
+    }
+    elif ( n == 1 ) {
+        result := 1 ;
+    }
+    else {
+        result := fib ( n - 1 ) + fib ( n - 2 ) ;
+    }
+    return result ;
+}
+
+fn main() -> int {
+    return fib(5);
+}
