@@ -76,7 +76,7 @@ risc-v_compiler/
 ├── Cargo.lock
 ├── Cargo.toml
 ├── README.md
-├── grammar.ebnf       # lexical syntax and grammatical definition of the toy language
+├── grammar.ebnf       # lexical syntax and grammatical definition
 ├── src/
 │   ├── ast.rs         # implements grammar.ebnf as rust structs
 │   ├── code_gen.rs    # code generation
@@ -93,6 +93,76 @@ risc-v_compiler/
     ├── parser_test.rs
     └── scanner_test.rs
 ```
+
+## Terminology
+
+- `Token`: the smallest unit of characters that the grammar is built upon
+- `SyntaxToken`: token wrapped with location information
+- AST: abstract syntax tree
+
+## Language Design
+
+This toy language is designed for simplicity not only from user's but also from the compiler's perspective:
+
+1. Avoid type checking phase for simplicity
+
+- There's only an integer type
+- Every function MUST return an integer
+
+2. Avoid complex control flow analysis for simplicity
+
+- No early return in branch or loop statements
+- No `goto` statement
+- No standalone `{}`
+
+3. The main expression tree only requires 3 scratch registers for simplicity
+
+- The core expression tree has 3 levels, so a maximum of 3 scratch registers is needed (see )
+- Except when there's grouping, `()`, or function call.
+
+4. The expression tree is friendly to recursive descent parser (see `grammar.ebnf`)
+
+- For `arithmetic_expr = atom_expr (('+' | '-') atom_expr)* ;`, we could've written `arithmetic_expr = arithmetic_expr ('+' | '-') atom_expr | atom_expr` to force the left associativity of addition and subtraction so `a + b + c` becomes `(a + b) + c` or
+
+  ```text
+            arithmetic_expr
+          /         |     \
+         /          |      \
+  arithmetic_expr   +       c
+    /  |  \
+   a   +   b
+  ```
+
+  This form ensures the code generation phase, who does post-order traversal on AST, will generate code to compute `a + b` before adding c.
+
+  However, this won't work with a left recursive parser because to parse an `arithmetic_expr`, we need to know if the left hand side is an `arithmetic_expr` or not, which requires parsing from the same position indefinitely:
+
+  ```rust
+  fn parse_arithmetic_expr(position: usize) -> i32 {
+    let new_pos = parse_arithmetic_expr(position); // oops, infinite recursion: the function immediately calls itself without advancing the position.
+    if new_pos != -1 {
+       parse_operator(new_pos);
+       ...
+    }
+    ...
+  }
+  ```
+
+  as a result, the iterative version was used.
+
+5.  Operator precedence is enforced in AST parsing phase, while associativity is enforced by the code generation phase to make data structure simpler
+
+- For example, in
+
+  ```text
+   comparison_expr = arithmetic_expr (('==' | '>') arithmetic_expr)? ;
+   arithmetic_expr = atom_expr (('+' | '-') atom_expr)* ;
+  ```
+
+  Since code generation does post-order traversal on the AST,
+  `arithmetic_expr`'s code would be generated before `comparison_expr`, thus the precedence is upheld by the AST structure itself.
+
+  On the contrary, `arithmetic_expr = atom_expr (('+' | '-') atom_expr)* ;` doesn't enforce left or right associativity at the AST level. We could pick any of the `atom_expr` in wildcard and start adding or subtracting from there, thus it's decided by the code generation implementation. This is easier because the wildcard part could be parsed to an ordered list instead of more complex subtrees.
 
 ## Compilation Phase
 
