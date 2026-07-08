@@ -313,6 +313,30 @@ impl<'a> CodeGen<'a> {
     }
 
     // ── Expressions ──────────────────────────────────────────────────────────────────
+    // This is the mental model I had in mind in order to hardcode 3 temporary registers:
+    //
+    //                T0 or T1 (comp_expr)
+    //               /     |            \
+    //             /       |             \
+    //           T0     (==, >)     T1 (arith_expr)
+    //         /                      /   |     \
+    //   free = (T0, T1, T2)         /    |      \
+    //                             T1  (+, -)    T2 (atom_expr)
+    //                             /               \
+    //                      free = (T1, T2)         T2
+    //                                                \
+    //                                              (No more free reg)
+    //
+    //
+    // The free registers are register that could be used in an instruction
+    //
+    // The number of free registers decreases from left to right subtree because the left subtree
+    // requires intermediate result to be stored in T0 until the top level comparison is done. Same with T1 in the rhs
+    //
+    // Using 3 temporary registers is nevertheless enough for this language. We could always store lhs of
+    // comparison_expr to T0 and rhs to T1, and for arith_expr, always use T1 for lhs and T2 for rhs.
+    // for a chain of addition or subtraction in arith_expr, we could always accumulate the intermediate result to T1
+    // for special cases like deep nested group expression and function call, we could spill registers to memory and get them back
     fn gen_expr(&mut self, expr: &Expr, dst: Reg) -> Result<Vec<Instr>, CGError> {
         let mut instrs = Vec::new();
 

@@ -4,6 +4,7 @@ use serial_test::serial;
 use std::fs;
 use std::process::Command;
 
+// Could only run inside the devcontainer defined in the project root
 #[track_caller]
 fn compile_and_run(input: &str) -> (i32, String) {
     // 1. Generate assembly string

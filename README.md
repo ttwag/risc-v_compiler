@@ -87,7 +87,7 @@ risc-v_compiler/
 │   └── token.rs       # implements syntax tokens struct
 ├── target/
 └── tests/
-    ├── code_gen_test.rs
+    ├── code_gen_test.rs # run generated code on RISC-V simulator (only runs in devcontainer)
     ├── fixtures       # test code written in toy language
     ├── main_test.rs
     ├── parser_test.rs
@@ -168,37 +168,17 @@ This toy language is designed for simplicity not only from user's but also from 
 
 ### Scanning
 
+- Scans the input `&str` and returns a list of `SyntaxTokens`
+- Is table-driven and easy to expand the set of tokens
+
 ### Parsing
+
+- Parses the list of `SyntaxTokens` into an AST
+- Recursive descent parser that has one function per grammar rule
 
 ### Code Generation
 
-How many temporary register is enough?
-
-````text
-comp_expr                dest=t0  free={t0,t1,t2}
-├── arith_expr (left)    dest=t0  free={t0,t1,t2}
-│   ├── atom_expr        dest=t1  free={t0,t1,t2}
-│   ├── (+/-)
-│   └── atom_expr        dest=t2  free={t0,t2}
-├── (==/>)
-└── arith_expr (right)   dest=t1  free={t1,t2}
-    ├── atom_expr        dest=t1  free={t1,t2}
-    ├── (+/-)
-    └── atom_expr        dest=t2  free={t2}  ← last free temp
-
-Legend:
-  dest  — the register this node writes its result into
-  free  — registers still available for this node and its children to use
-
-Rule: each right sibling consumes one register from the free pool,
-      so max registers needed = height of the expression tree.
-      ```
-````
-
-with a stack, the 3 regs could handle expressions of arbitrary depth because each push creates a new subtree with free regs:
-
-```text
-comp_expr
-└── arith_expr (left)
-    └── atom_expr::Group  dest=t1 ← push(t0,t2); RECURSE with free={t0,t1,t2} fresh; pop
-```
+- Walks through the AST in post-order sequence, then generates RISC-V assembly code
+- Follows the RISC-V ABI function call and return conventions
+- Spills register to stack during group expression and function call
+- Three temporary registers are enough for other expressions
